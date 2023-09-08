@@ -102,12 +102,12 @@ class BugNIST(torch.utils.data.Dataset):
 
         target = torch.zeros(X.shape)
         # Mask to get the approximate area of the bug
-        target[X > 100] = label.value
+        target[X >= 100] = label.value
         target = target.to(dtype=torch.long)
+        target = target.squeeze(dim=0)
         
         # # One-hot encode
         # target = torch.nn.functional.one_hot(target, num_classes=13)
-        # target = target.squeeze(dim=1)
         # # Convert from NHWDC to NCHWD
         # target = target.permute(0, 4, 1, 2, 3)
 

@@ -20,9 +20,7 @@ from src.models.unet import UNet_pl
 
 def main(
     name: str = "test",
-    max_epochs: int = 10,
     num_workers: int = 0,
-    lr: float = 1e-4,
     batch_size: int = 16,
     compiled: bool = False,
     ):
@@ -39,45 +37,24 @@ def main(
                   out_channels=13,
                   channels=(4, 8, 16, 32, 64),
                   strides=(2, 2, 2, 2),
-                  lr=lr
                 )
     if compiled:
         torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
-    
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=_PATH_MODELS + "/" + time,
-        filename='UNet-{epoch}',
-        monitor="val/focal_loss",
-        mode="min",
-        save_top_k=1,
-        auto_insert_metric_name=True,
-    )
 
     bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     
-    
-
-    early_stopping_callback = EarlyStopping(
-        monitor="val/focal_loss", patience=10, verbose=True, mode="min", strict=False, check_on_train_epoch_end=False,
-    )
-        
-
     trainer = Trainer(
-        max_epochs=max_epochs,
+        max_epochs=1,
         devices=-1,
         accelerator="gpu",
         deterministic=False,
         default_root_dir=_PROJECT_ROOT,
         precision="16-mixed",
-        callbacks=[checkpoint_callback, early_stopping_callback],
         log_every_n_steps=25,
         logger=wandb_logger,
     )
-
-
-    trainer.fit(model, datamodule=bugnist)
     
-    trainer.test(ckpt_path="best")
+    trainer.test(model, datamodule=bugnist, ckpt_path="models/2023-09-06-2346/UNet-epoch=33.ckpt")

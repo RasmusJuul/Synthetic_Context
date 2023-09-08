@@ -97,11 +97,11 @@ def softmax_focal_loss(
             f"Expected elements of alpha to sum 1.0, instead they sum to {alpha.sum()}"
         )
         weight = alpha
+    weight = weight.to(logits.device)
+    log_p = F.log_softmax(input=logits, dim=1)
+    ce_loss = F.nll_loss(input=log_p, target=targets, weight=weight)
     
-    log_p = log_softmax(input=logits, dim=1)
-    ce_loss = nll_loss(input=log_p, target=targets, weight=weight)
-    
-    pt =  exp(log_p.take_along_dim(indices=indices.unsqueeze(dim=1), dim=1)) 
+    pt =  torch.exp(log_p.take_along_dim(indices=targets.unsqueeze(dim=1), dim=1)) 
     focal_loss = ((1 - pt) ** gamma) * ce_loss
     if reduction == 'none':
         return focal_loss

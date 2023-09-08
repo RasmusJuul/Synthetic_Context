@@ -5,6 +5,7 @@ import sys
 import torch
 
 from src.models.train_model import main as train
+from src.models.test_model import main as test
 
 
 def main(
@@ -14,17 +15,25 @@ def main(
     lr: float,
     batch_size: int,
     compiled: bool,
+    test_: bool,
 ):
     torch.cuda.empty_cache()
-
-    train(
-        name=name,
-        max_epochs=max_epochs,
-        num_workers=num_workers,
-        lr=lr,
-        batch_size=batch_size,
-        compiled=compiled,
-    )
+    if test_:
+        test(
+            name=name,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            compiled=compiled
+        )
+    else:
+        train(
+            name=name,
+            max_epochs=max_epochs,
+            num_workers=num_workers,
+            lr=lr,
+            batch_size=batch_size,
+            compiled=compiled,
+        )
 
 
 if __name__ == "__main__":
@@ -70,6 +79,12 @@ if __name__ == "__main__":
         action='store_true',
         help="compiles model"
     )
+    parser.add_argument(
+        "-t",
+        "--test",
+        action='store_true',
+        help="if true test model else train"
+    )
     args = parser.parse_args()
 
     main(
@@ -79,4 +94,5 @@ if __name__ == "__main__":
         lr=args.lr,
         batch_size=args.batch_size,
         compiled=args.compiled,
+        test_=args.test,
     )

@@ -1,5 +1,6 @@
 from pytorch_lightning import LightningModule
 import torch
+import torchmetrics as tm
 
 from collections.abc import Sequence
 
@@ -44,17 +45,22 @@ class UNet_pl(UNet,LightningModule):
                                      )
         self.Loss = softmax_focal_loss
         self.lr = lr
-        self.alpha = torch.Tensor([0.0328, 0.0806, 0.0806, 0.0806, 0.0806, 0.0806, 0.0806, 0.0806, 0.0806,
-        0.0806, 0.0806, 0.0806, 0.0806])
+        self.alpha = torch.Tensor([0.01,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825])
+        self.precision = tm.Precision(task="multiclass", average='macro', num_classes=13,ignore_index=0)
+        self.recall = tm.Recall(task="multiclass", average='macro', num_classes=13,ignore_index=0)
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
         x, y = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha = self.alpha, reduction = 'mean')
+        precision = self.precision(preds,y)
+        recall = self.recall(preds,y)
         
         self.log_dict({
             'train/focal_loss': loss,
+            'train/precision': precision,
+            'train/recall': recall,
         },
             on_step=True,
             on_epoch=False,
@@ -67,9 +73,13 @@ class UNet_pl(UNet,LightningModule):
         x, y = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha = self.alpha, reduction = 'mean')
+        precision = self.precision(preds,y)
+        recall = self.recall(preds,y)
         
         self.log_dict({
             'val/focal_loss': loss,
+            'val/precision': precision,
+            'val/recall': recall,
         },
             on_step=False,
             on_epoch=True,
@@ -80,9 +90,13 @@ class UNet_pl(UNet,LightningModule):
         x, y = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha = self.alpha, reduction = 'mean')
+        precision = self.precision(preds,y)
+        recall = self.recall(preds,y)
 
         self.log_dict({
             'test/focal_loss': loss,
+            'test/precision': precision,
+            'test/recall': recall,
         },
             on_step=False,
             on_epoch=True,
