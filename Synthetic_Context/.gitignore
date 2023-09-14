@@ -92,3 +92,4 @@ notebooks/
 error/
 outputs/
 wandb/
+models/*
