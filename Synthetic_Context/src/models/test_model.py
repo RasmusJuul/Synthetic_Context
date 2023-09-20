@@ -42,7 +42,7 @@ def main(
         torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
 
-    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers)
+    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers,mix=True)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     
@@ -57,4 +57,4 @@ def main(
         logger=wandb_logger,
     )
     
-    trainer.test(model, datamodule=bugnist, ckpt_path="models/2023-09-06-2346/UNet-epoch=33.ckpt")
+    trainer.test(model, datamodule=bugnist, ckpt_path="models/2023-09-19-1659/UNet-epoch=221.ckpt")

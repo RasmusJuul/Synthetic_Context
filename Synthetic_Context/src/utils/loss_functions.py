@@ -7,38 +7,6 @@ from torchvision.utils import _log_api_usage_once
 
 from collections.abc import Sequence
 
-class MulticlassDiceLoss(nn.Module):
-    """Reference: https://www.kaggle.com/code/bigironsphere/loss-function-library-keras-pytorch#Dice-Loss
-    """
-    def __init__(self, num_classes, softmax_dim=None, ignore_background=False):
-        super().__init__()
-        self.num_classes = num_classes
-        self.softmax_dim = softmax_dim
-        self.ignore_background = ignore_background
-    def forward(self, logits, targets, reduction='mean', smooth=1e-6):
-        """The "reduction" argument is ignored. This method computes the dice
-        loss for all classes and provides an overall weighted loss.
-        """
-        if self.ignore_background:
-            targets = targets[:,1:-1,:,:,:]
-            logits = logits[:,1:-1,:,:,:]
-        
-        probabilities = logits
-        if self.softmax_dim is not None:
-            probabilities = nn.Softmax(dim=self.softmax_dim)(logits)
-        # end if
-        
-        # Multiply one-hot encoded ground truth labels with the probabilities to get the
-        # prredicted probability for the actual class.
-        intersection = (targets * probabilities).sum()
-        
-        mod_a = intersection.sum()
-        mod_b = targets.numel()
-        
-        dice_coefficient = 2. * intersection / (mod_a + mod_b + smooth)
-        dice_loss = -dice_coefficient.log()
-        return dice_loss
-
 def softmax_focal_loss(
     inputs: torch.Tensor,
     targets: torch.Tensor,

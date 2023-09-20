@@ -16,6 +16,7 @@ def main(
     batch_size: int,
     compiled: bool,
     test_: bool,
+    mix: bool,
 ):
     torch.cuda.empty_cache()
     if test_:
@@ -33,6 +34,7 @@ def main(
             lr=lr,
             batch_size=batch_size,
             compiled=compiled,
+            mix=mix,
         )
 
 
@@ -85,6 +87,11 @@ if __name__ == "__main__":
         action='store_true',
         help="if true test model else train"
     )
+    parser.add_argument(
+        "--mix",
+        action='store_true',
+        help="if true train on artificially created mixed samples"
+    )
     args = parser.parse_args()
 
     main(
@@ -95,4 +102,5 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         compiled=args.compiled,
         test_=args.test,
+        mix=args.mix,
     )

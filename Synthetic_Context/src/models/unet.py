@@ -46,8 +46,8 @@ class UNet_pl(UNet,LightningModule):
         self.Loss = softmax_focal_loss
         self.lr = lr
         self.alpha = torch.Tensor([0.01,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825,0.0825])
-        self.precision = tm.Precision(task="multiclass", average='macro', num_classes=13,ignore_index=0)
-        self.recall = tm.Recall(task="multiclass", average='macro', num_classes=13,ignore_index=0)
+        self.precision = tm.Precision(task="multiclass", num_classes=13,ignore_index=0)
+        self.recall = tm.Recall(task="multiclass", num_classes=13,ignore_index=0)
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.

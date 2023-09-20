@@ -93,3 +93,4 @@ error/
 outputs/
 wandb/
 models/*
+test_results/*

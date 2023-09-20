@@ -25,6 +25,7 @@ def main(
     lr: float = 1e-4,
     batch_size: int = 16,
     compiled: bool = False,
+    mix: bool = False,
     ):
     
     seed_everything(1234, workers=True)
@@ -54,7 +55,7 @@ def main(
         auto_insert_metric_name=True,
     )
 
-    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers)
+    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers, mix=mix)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     
@@ -80,4 +81,4 @@ def main(
 
     trainer.fit(model, datamodule=bugnist)
     
-    trainer.test(ckpt_path="best")
+    trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)
