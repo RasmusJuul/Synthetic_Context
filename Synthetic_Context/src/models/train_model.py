@@ -79,6 +79,6 @@ def main(
     )
 
 
-    trainer.fit(model, datamodule=bugnist)
+    trainer.fit(model, datamodule=bugnist, ckpt_path=_PATH_MODELS+"/2023-09-20-1155/UNet-epoch=164.ckpt")
     
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)

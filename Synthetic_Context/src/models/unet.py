@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from monai.networks.layers.factories import Act, Norm
 from monai.networks.nets.unet import UNet
 
-from src.utils.loss_functions import MulticlassDiceLoss, softmax_focal_loss
+from src.utils.loss_functions import softmax_focal_loss
 
 
 class UNet_pl(UNet,LightningModule):

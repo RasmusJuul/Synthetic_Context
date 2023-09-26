@@ -81,7 +81,8 @@ class BugNIST_mix(torch.utils.data.Dataset):
     @staticmethod
     def dataset_images(dataset_path: str, type: SplitType) -> tuple[list[str], list[Label]]:
         assert len(SplitType) == 3
-        file_name = "train_mix" if type == SplitType.Train else "test_mix" if type == SplitType.Test else "validation_mix"
+        # file_name = "train_mix" if type == SplitType.Train else "test_mix" if type == SplitType.Test else "validation_mix"
+        file_name = "train_noisy_mix" if type == SplitType.Train else "test_noisy_mix" if type == SplitType.Test else "validation_noisy_mix"
         files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
         return files.image_path.to_list(), files.label_path.to_list()
 
@@ -100,6 +101,60 @@ class BugNIST_mix(torch.utils.data.Dataset):
         X = torch.Tensor(image)
         y = torch.Tensor(label)
         y = y.to(torch.long)
+
+        return X, y
+
+    @staticmethod
+    def num_classes() -> int:
+        return len(Label)
+
+    @staticmethod
+    def label_to_name(label: int) -> str:
+        return Label(label).abbreviation
+
+    def get_name_of_image(self, idx: int) -> str:
+        return self.image_paths[idx].split("/")[-1].split(".")[0]
+
+class BugNIST_all(torch.utils.data.Dataset):
+    def __init__(self, type: SplitType, seed=42):
+
+        dataset_path = _PATH_DATA
+
+        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type)
+        self.image_paths = [os.path.join(dataset_path, path) for path in self.image_paths]
+        self.label_paths = [os.path.join(dataset_path, path) for path in self.label_paths]
+        self.rng = np.random.default_rng(seed=seed)
+
+    @staticmethod
+    def dataset_images(dataset_path: str, type: SplitType) -> tuple[list[str], list[Label]]:
+        assert len(SplitType) == 3
+        file_name = "train" if type == SplitType.Train else "test" if type == SplitType.Test else "validation"
+        files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
+        return files.image_path.to_list(), files.label_path.to_list()
+
+    def __len__(self) -> int:
+        return len(self.image_paths)  # len(self.data)
+
+    def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
+        image_path = self.image_paths[idx]
+        label_path = self.label_paths[idx]
+
+        image = tifffile.imread(image_path)
+        image = np.expand_dims(image, 0)
+
+        X = torch.Tensor(image)
+
+        if "none" in label_path:
+            target = torch.zeros(X.shape)
+            # Mask to get the approximate area of the bug
+            target[X >= 100] = Label.from_abbreviation(image_path.split("/")[-2])
+            target = target.to(dtype=torch.long)
+            y = target.squeeze(dim=0)
+            
+        else:
+            label = tifffile.imread(label_path)
+            y = torch.Tensor(label)
+            y = y.to(torch.long)
 
         return X, y
 
@@ -188,14 +243,14 @@ class BugNISTDataModule(pl.LightningDataModule):
     def setup(self, stage=None):        
         if stage == "test" or stage is None:
             if self.mix:
-                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed)
+                self.bugnist_test = BugNIST_all(type=SplitType.Test, seed=self.seed)
             else:
                 self.bugnist_test = BugNIST(type=SplitType.Test, seed=self.seed)
 
         if stage == "fit" or stage is None:
             if self.mix:
-                self.bugnist_train = BugNIST_mix(type=SplitType.Train, seed=self.seed)
-                self.bugnist_val = BugNIST_mix(type=SplitType.Validation, seed=self.seed)
+                self.bugnist_train = BugNIST_all(type=SplitType.Train, seed=self.seed)
+                self.bugnist_val = BugNIST_all(type=SplitType.Validation, seed=self.seed)
             else:
                 self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)
                 self.bugnist_val = BugNIST(type=SplitType.Validation, seed=self.seed)
