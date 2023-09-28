@@ -6,6 +6,7 @@ import torch
 
 from src.models.train_model import main as train
 from src.models.test_model import main as test
+from src.models.train_cyclegan import main as train_cyclegan
 
 
 def main(
@@ -17,9 +18,18 @@ def main(
     compiled: bool,
     test_: bool,
     mix: bool,
+    cyclegan: bool,
 ):
     torch.cuda.empty_cache()
-    if test_:
+    if cyclegan:
+        train_cyclegan(
+            name=name,
+            max_epochs=max_epochs,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            compiled=compiled,
+        )
+    elif test_:
         test(
             name=name,
             num_workers=num_workers,
@@ -92,6 +102,11 @@ if __name__ == "__main__":
         action='store_true',
         help="if true train on artificially created mixed samples"
     )
+    parser.add_argument(
+        "--gan",
+        action='store_true',
+        help="if true train cyclegan"
+    )
     args = parser.parse_args()
 
     main(
@@ -103,4 +118,5 @@ if __name__ == "__main__":
         compiled=args.compiled,
         test_=args.test,
         mix=args.mix,
+        cyclegan=args.gan,
     )
