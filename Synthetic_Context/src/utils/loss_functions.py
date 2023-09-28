@@ -7,6 +7,7 @@ from torchvision.utils import _log_api_usage_once
 
 from collections.abc import Sequence
 
+
 def softmax_focal_loss(
     inputs: torch.Tensor,
     targets: torch.Tensor,
@@ -51,33 +52,37 @@ def softmax_focal_loss(
     if not torch.jit.is_scripting() and not torch.jit.is_tracing():
         _log_api_usage_once(softmax_focal_loss)
 
-    assert targets.dtype == torch.long, f"Expected a long tensor for 'targets', but got {targets.dtype}"
+    assert (
+        targets.dtype == torch.long
+    ), f"Expected a long tensor for 'targets', but got {targets.dtype}"
 
     logits = inputs
     weight = None
     if alpha is not None:
         num_classes = logits.size(1)
-        assert isinstance(alpha, torch.Tensor), f"Expected alpha to be torch.Tensor, got {type(alpha)}"
-        assert alpha.size(0) == num_classes, (
-            f"Expected alpha (weights) to have {num_classes} elements, but got {alpha.size(0)} elements"
-        )
-        assert abs(alpha.sum() - 1.0) <= eps, (
-            f"Expected elements of alpha to sum 1.0, instead they sum to {alpha.sum()}"
-        )
+        assert isinstance(
+            alpha, torch.Tensor
+        ), f"Expected alpha to be torch.Tensor, got {type(alpha)}"
+        assert (
+            alpha.size(0) == num_classes
+        ), f"Expected alpha (weights) to have {num_classes} elements, but got {alpha.size(0)} elements"
+        assert (
+            abs(alpha.sum() - 1.0) <= eps
+        ), f"Expected elements of alpha to sum 1.0, instead they sum to {alpha.sum()}"
         weight = alpha
     weight = weight.to(logits.device)
     log_p = F.log_softmax(input=logits, dim=1)
     ce_loss = F.nll_loss(input=log_p, target=targets, weight=weight)
-    
-    pt =  torch.exp(log_p.take_along_dim(indices=targets.unsqueeze(dim=1), dim=1)) 
+
+    pt = torch.exp(log_p.take_along_dim(indices=targets.unsqueeze(dim=1), dim=1))
     focal_loss = ((1 - pt) ** gamma) * ce_loss
-    if reduction == 'none':
+    if reduction == "none":
         return focal_loss
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return focal_loss.sum()
-    elif reduction == 'mean':
+    elif reduction == "mean":
         return focal_loss.mean()
-    elif reduction == 'instance-sum-batch-mean':
+    elif reduction == "instance-sum-batch-mean":
         return focal_loss.sum() / logits.size(0)
     else:
         raise ValueError(

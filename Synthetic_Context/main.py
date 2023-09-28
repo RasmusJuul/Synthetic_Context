@@ -31,10 +31,7 @@ def main(
         )
     elif test_:
         test(
-            name=name,
-            num_workers=num_workers,
-            batch_size=batch_size,
-            compiled=compiled
+            name=name, num_workers=num_workers, batch_size=batch_size, compiled=compiled
         )
     else:
         train(
@@ -52,61 +49,34 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Trains a UNet on segmentation of BugNIST"
     )
+    parser.add_argument("--name", "-n", type=str, default="test", help="Name for wandb")
     parser.add_argument(
-        "--name",
-        "-n",
-        type=str,
-        default="test",
-        help="Name for wandb"
-    )
-    parser.add_argument(
-        "--max-epochs",
-        "-me",
-        type=int,
-        default=10,
-        help="Number of max epochs"
+        "--max-epochs", "-me", type=int, default=10, help="Number of max epochs"
     )
     parser.add_argument(
         "--num-workers",
         "-nw",
         type=int,
         default=0,
-        help="Number of threads use in loading data"
+        help="Number of threads use in loading data",
     )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=1e-4,
-        help="Learning rate"
-    )
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument(
         "--batch_size",
         type=int,
         help="Batch size",
         default=8,
     )
+    parser.add_argument("-c", "--compiled", action="store_true", help="compiles model")
     parser.add_argument(
-        "-c",
-        "--compiled",
-        action='store_true',
-        help="compiles model"
-    )
-    parser.add_argument(
-        "-t",
-        "--test",
-        action='store_true',
-        help="if true test model else train"
+        "-t", "--test", action="store_true", help="if true test model else train"
     )
     parser.add_argument(
         "--mix",
-        action='store_true',
-        help="if true train on artificially created mixed samples"
+        action="store_true",
+        help="if true train on artificially created mixed samples",
     )
-    parser.add_argument(
-        "--gan",
-        action='store_true',
-        help="if true train cyclegan"
-    )
+    parser.add_argument("--gan", action="store_true", help="if true train cyclegan")
     args = parser.parse_args()
 
     main(
