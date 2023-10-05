@@ -1,10 +1,10 @@
 #!/bin/sh
 #BSUB -q compute
 #BSUB -J mixes
-#BSUB -n 24
+#BSUB -n 10
 #BSUB -R "span[hosts=1]"
 ##BSUB -gpu "num=1:mode=exclusive_process"
-#BSUB -W 00:30
+#BSUB -W 02:00
 #BSUB -R "rusage[mem=2GB]"
 ##BSUB -R "select[gpu80gb]" #options gpu40gb or gpu80gb
 ##BSUB -o outputs/gpu_%J.out
@@ -18,4 +18,4 @@ source ../../../../envs/thesis/bin/activate
 # Run main.py --help to get options
 
 # python3 prepare_cyclegan_data.py
-python3 create_mixes.py
+python3 create_mixed_metric_labels.py

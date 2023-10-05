@@ -126,24 +126,28 @@ class CycleGan(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         imgA, imgB = batch["A"], batch["B"]
         optimizer_g, optimizer_d = self.optimizers()
-
+        
+        
         set_requires_grad([self.disX, self.disY], False)
         self.toggle_optimizer(optimizer_g)
+        
         genLoss = self.generator_step(imgA, imgB)
         self.log_dict({"train/gen_loss": genLoss.item()}, on_step=True, on_epoch=True)
+        
         self.manual_backward(genLoss)
         optimizer_g.step()
         optimizer_g.zero_grad()
         self.untoggle_optimizer(optimizer_g)
 
-        set_requires_grad([self.disX, self.disY], True)
-        self.toggle_optimizer(optimizer_d)
-        disLoss = self.discriminator_step(imgA, imgB)
-        self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
-        self.manual_backward(disLoss)
-        optimizer_d.step()
-        optimizer_d.zero_grad()
-        self.untoggle_optimizer(optimizer_d)
+        if self.global_step % 2 == 1:
+            set_requires_grad([self.disX, self.disY], True)
+            self.toggle_optimizer(optimizer_d)
+            disLoss = self.discriminator_step(imgA, imgB)
+            self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
+            self.manual_backward(disLoss)
+            optimizer_d.step()
+            optimizer_d.zero_grad()
+            self.untoggle_optimizer(optimizer_d)
 
         if self.trainer.is_last_batch:
             sch1, sch2 = self.lr_schedulers()
@@ -158,10 +162,11 @@ class CycleGan(pl.LightningModule):
         self.log_dict({"val/gen_loss": genLoss.item()}, on_step=False, on_epoch=True)
         disLoss = self.discriminator_step(imgA, imgB)
         self.log_dict({"val/dis_loss": disLoss.item()}, on_step=False, on_epoch=True)
+        
 
     def test_step(self, batch, batch_idx):
         imgA, imgB = batch["A"], batch["B"]
-        set_requires_grad([self.disX, self.disY], False)
+        set_requires_grad([self.genX, self.genY, self.disX, self.disY], False)
 
         genLoss = self.generator_step(imgA, imgB)
         self.log_dict({"test/gen_loss": genLoss.item()}, on_step=False, on_epoch=True)
