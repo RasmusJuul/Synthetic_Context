@@ -51,6 +51,7 @@ class UnpairedDataset(Dataset):
         super().__init__()
 
         root = os.path.join(_PATH_DATA, root)
+        # pathA = os.path.join(_PATH_DATA,f"synthetic_mixed_256/{mode}")
         pathA = os.path.join(root, mode + "A")
         self.dirA = ImageFolder(pathA)
 

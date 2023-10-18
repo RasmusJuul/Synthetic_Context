@@ -1,7 +1,7 @@
 #!/bin/sh
 #BSUB -q compute
 #BSUB -J mixes
-#BSUB -n 10
+#BSUB -n 20
 #BSUB -R "span[hosts=1]"
 ##BSUB -gpu "num=1:mode=exclusive_process"
 #BSUB -W 02:00

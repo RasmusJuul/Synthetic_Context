@@ -2,9 +2,10 @@ import logging
 import datetime
 
 import torch
-import torch._dynamo
+import torch._dynamo    
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import (
+    EarlyStopping,
     ModelCheckpoint,
     LearningRateMonitor,
 )
@@ -33,7 +34,7 @@ def main(
     model = CycleGan()
 
     if compiled:
-        # torch._dynamo.config.suppress_errors = True
+        torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
 
     checkpoint_callback = ModelCheckpoint(
@@ -44,6 +45,16 @@ def main(
         auto_insert_metric_name=True,
     )
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
+
+    early_stopping_callback = EarlyStopping(
+        monitor="val/gen_loss",
+        patience=max_epochs,
+        verbose=True,
+        mode="min",
+        strict=False,
+        check_on_train_epoch_end=False,
+        check_finite = True,
+    )
 
     datamodule = CycleGANDataModule(batch_size=batch_size, num_workers=num_workers)
 
@@ -56,9 +67,10 @@ def main(
         deterministic=False,
         default_root_dir=_PROJECT_ROOT,
         precision="16-mixed",
-        callbacks=[checkpoint_callback, lr_monitor],
+        callbacks=[checkpoint_callback, lr_monitor, early_stopping_callback],
         log_every_n_steps=25,
         logger=wandb_logger,
+        # strategy='ddp_find_unused_parameters_true'
     )
 
     trainer.fit(

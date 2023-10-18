@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from torchsummary import summary
 import itertools
 import pytorch_lightning as pl
-
+from monai.networks.nets.unet import UNet
 
 from src.models import PatchDiscriminator, ResnetGenerator
 from src.models.utils import ImagePool, init_weights, set_requires_grad
@@ -17,8 +17,24 @@ class CycleGan(pl.LightningModule):
     def __init__(self):
         super().__init__()
         # generator pair
-        self.genX = ResnetGenerator.get_generator()
-        self.genY = ResnetGenerator.get_generator()
+        self.genX = UNet(spatial_dims=3,
+                         in_channels=1,
+                         out_channels=1,
+                         channels=(4, 8, 16, 32, 64, 128),
+                         strides=(2, 2, 2, 2, 2),
+                         num_res_units = 2
+                        )
+
+        
+        self.genY = UNet(spatial_dims=3,
+                         in_channels=1,
+                         out_channels=1,
+                         channels=(4, 8, 16, 32, 64, 128),
+                         strides=(2, 2, 2, 2, 2),
+                         num_res_units = 2
+                        )
+        # self.genX = ResnetGenerator.get_generator()
+        # self.genY = ResnetGenerator.get_generator()
 
         # discriminator pair
         self.disX = PatchDiscriminator.get_model()
@@ -66,14 +82,14 @@ class CycleGan(pl.LightningModule):
 
     def generator_step(self, imgA, imgB):
         """cycle images - using only generator nets"""
-        fakeB = self.genX(imgA)
-        cycledA = self.genY(fakeB)
+        fakeB = F.sigmoid(self.genX(imgA))*255
+        cycledA = F.sigmoid(self.genY(fakeB))*255
 
-        fakeA = self.genY(imgB)
-        cycledB = self.genX(fakeA)
+        fakeA = F.sigmoid(self.genY(imgB))*255
+        cycledB = F.sigmoid(self.genX(fakeA))*255
 
-        sameB = self.genX(imgB)
-        sameA = self.genY(imgA)
+        sameB = F.sigmoid(self.genX(imgB))*255
+        sameA = F.sigmoid(self.genY(imgA))*255
 
         # generator genX must fool discrim disY so label is real = 1
         predFakeB = self.disY(fakeB)
@@ -139,15 +155,15 @@ class CycleGan(pl.LightningModule):
         optimizer_g.zero_grad()
         self.untoggle_optimizer(optimizer_g)
 
-        if self.global_step % 2 == 1:
-            set_requires_grad([self.disX, self.disY], True)
-            self.toggle_optimizer(optimizer_d)
-            disLoss = self.discriminator_step(imgA, imgB)
-            self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
-            self.manual_backward(disLoss)
-            optimizer_d.step()
-            optimizer_d.zero_grad()
-            self.untoggle_optimizer(optimizer_d)
+        # if self.global_step % 2 == 1:
+        set_requires_grad([self.disX, self.disY], True)
+        self.toggle_optimizer(optimizer_d)
+        disLoss = self.discriminator_step(imgA, imgB)
+        self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
+        self.manual_backward(disLoss)
+        optimizer_d.step()
+        optimizer_d.zero_grad()
+        self.untoggle_optimizer(optimizer_d)
 
         if self.trainer.is_last_batch:
             sch1, sch2 = self.lr_schedulers()
