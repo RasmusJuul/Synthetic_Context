@@ -293,15 +293,15 @@ if __name__ == "__main__":
     df["label"] = df.filename.apply(lambda x: x.split("/")[0])
     noise = glob(_PATH_DATA + "/noise/*.tif")
 
-    for i in range(int(2000*3 / 200)):
+    for i in range(int(5000*3 / 200)):
         os.makedirs(
             _PATH_DATA + f"/synthetic_mixed_256/train/{str(i).zfill(2)}", exist_ok=True
         )
-    for i in range(int(100*3 / 200)):
+    for i in range(int(500*3 / 200)):
         os.makedirs(
             _PATH_DATA + f"/synthetic_mixed_256/test/{str(i).zfill(2)}", exist_ok=True
         )
-    for i in range(int(100*3 / 200)):
+    for i in range(int(500*3 / 200)):
         os.makedirs(
             _PATH_DATA + f"/synthetic_mixed_256/validation/{str(i).zfill(2)}",
             exist_ok=True,
@@ -310,13 +310,13 @@ if __name__ == "__main__":
     L = []
     for i in tqdm(range(2000), unit="image", desc="creating mixed images"):
         L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L)
-        save_files("train",new_mix,new_mix_label,df)
+        save_files("train",new_mix,new_mix_label,df_new)
     L = []
     for i in tqdm(range(100), unit="image", desc="creating mixed images"):
         L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L)
-        save_files("test",new_mix,new_mix_label,df)
+        save_files("test",new_mix,new_mix_label,df_new)
     L = []
     for i in tqdm(range(100), unit="image", desc="creating mixed images"):
         L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L)
-        save_files("validation",new_mix,new_mix_label,df)
+        save_files("validation",new_mix,new_mix_label,df_new)
 
