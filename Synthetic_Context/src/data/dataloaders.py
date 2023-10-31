@@ -16,6 +16,7 @@ import itertools
 from enum import Enum, IntEnum, auto
 
 import pandas as pd
+from skimage.transform import resize
 from tifffile import tifffile
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -134,6 +135,43 @@ class CycleGANDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
+class MetricDataset(Dataset):
+    def __init__(self):
+        """
+        Dataset of mixed_crop and their corresponding metric distance labels
+        """
+        super().__init__()
+
+        files = pd.read_csv(f"{_PATH_DATA}/mixed_and_label_paths.csv", header=0)
+
+        self.image_paths = files.img_path.to_list()
+        self.label_paths = files.label_path.to_list()
+        
+        self.image_paths = [
+            os.path.join(_PATH_DATA, path) for path in self.image_paths
+        ]
+        self.label_paths = [
+            os.path.join(_PATH_DATA, path) for path in self.label_paths
+        ]
+
+    def __len__(self) -> int:
+        return len(self.image_paths)
+
+    def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
+        image_path = self.image_paths[idx]
+        label_path = self.label_paths[idx]
+
+        image = tifffile.imread(image_path)
+        label = tifffile.imread(label_path)
+
+        image = np.expand_dims(image, 0)
+
+        X = torch.Tensor(image)
+        y = torch.Tensor(label)
+        y = y.to(torch.long)
+
+        return X, y
+        
 
 class Label(IntEnum):
     Blowfly = (3,)
@@ -185,12 +223,12 @@ class SplitType(Enum):
     Validation = auto()
     Test = auto()
 
-
+# Dataloader for images of synthetic mixes or synthetic mixes generated with a cyclegan
 class BugNIST_mix(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42):
+    def __init__(self, type: SplitType, seed=42, gan=False):
         dataset_path = _PATH_DATA
 
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type)
+        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan)
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
@@ -201,19 +239,22 @@ class BugNIST_mix(torch.utils.data.Dataset):
 
     @staticmethod
     def dataset_images(
-        dataset_path: str, type: SplitType
-    ) -> tuple[list[str], list[Label]]:
+        dataset_path: str, type: SplitType, gan: bool
+    ) -> tuple[list[str], list[str]]:
         assert len(SplitType) == 3
         # file_name = "train_mix" if type == SplitType.Train else "test_mix" if type == SplitType.Test else "validation_mix"
         file_name = (
-            "train_noisy_mix"
+            "train"
             if type == SplitType.Train
-            else "test_noisy_mix"
+            else "test"
             if type == SplitType.Test
-            else "validation_noisy_mix"
+            else "validation"
         )
         files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
-        return files.image_path.to_list(), files.label_path.to_list()
+        if gan:
+            return files.gan_img_path.to_list(), files.label_path.to_list()
+        else:
+            return files.img_path.to_list(), files.label_path.to_list()
 
     def __len__(self) -> int:
         return len(self.image_paths)  # len(self.data)
@@ -244,7 +285,7 @@ class BugNIST_mix(torch.utils.data.Dataset):
     def get_name_of_image(self, idx: int) -> str:
         return self.image_paths[idx].split("/")[-1].split(".")[0]
 
-
+# Dataloader for images of single insects and synthetic mixes
 class BugNIST_all(torch.utils.data.Dataset):
     def __init__(self, type: SplitType, seed=42):
         dataset_path = _PATH_DATA
@@ -310,7 +351,7 @@ class BugNIST_all(torch.utils.data.Dataset):
     def get_name_of_image(self, idx: int) -> str:
         return self.image_paths[idx].split("/")[-1].split(".")[0]
 
-
+# Dataloader for images of single insects
 class BugNIST(torch.utils.data.Dataset):
     def __init__(self, type: SplitType, seed=42):
         dataset_path = os.path.join(_PATH_DATA, "bugnist_512")
@@ -401,15 +442,15 @@ class BugNISTDataModule(pl.LightningDataModule):
     def setup(self, stage=None):
         if stage == "test" or stage is None:
             if self.mix:
-                self.bugnist_test = BugNIST_all(type=SplitType.Test, seed=self.seed)
+                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, gan=True)
             else:
                 self.bugnist_test = BugNIST(type=SplitType.Test, seed=self.seed)
 
         if stage == "fit" or stage is None:
             if self.mix:
-                self.bugnist_train = BugNIST_all(type=SplitType.Train, seed=self.seed)
-                self.bugnist_val = BugNIST_all(
-                    type=SplitType.Validation, seed=self.seed
+                self.bugnist_train = BugNIST_mix(type=SplitType.Train, seed=self.seed, gan=True)
+                self.bugnist_val = BugNIST_mix(
+                    type=SplitType.Validation, seed=self.seed, gan=True
                 )
             else:
                 self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)

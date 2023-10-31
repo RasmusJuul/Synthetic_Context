@@ -76,5 +76,5 @@ def main(
     trainer.fit(
         model,
         datamodule=datamodule,
-        #ckpt_path=_PATH_MODELS + "/2023-09-27-2348/CycleGAN-epoch=3.ckpt",
+        ckpt_path=_PATH_MODELS + "/CycleGAN_UNet-2023-10-19-0921/CycleGAN-epoch=29.ckpt",
     )

@@ -45,7 +45,10 @@ def make_labels(idx,df,synthetic):
             for j in range(-7,8):
                 for k in range(-7,8):
                     if synthetic:
-                        markers[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        try:
+                            markers[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        except:
+                            print(f"centroid too close to the edge in {df.iloc[idx].img_path.split('/')[-1][:-4]}")
                     else:
                         markers[item[1].PosZ_resized+i,item[1].PosY_resized+k,item[1].PosX_resized+j] = Label.from_abbreviation(item[1].Caption).value
                         
@@ -57,7 +60,10 @@ def make_labels(idx,df,synthetic):
             for j in range(-7,8):
                 for k in range(-7,8):
                     if synthetic:
-                        skeleton_label[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        try:
+                            skeleton_label[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        except:
+                            continue
                     else:
                         skeleton_label[item[1].PosZ_resized+i,item[1].PosY_resized+k,item[1].PosX_resized+j] = Label.from_abbreviation(item[1].Caption).value
     
@@ -77,7 +83,10 @@ def make_labels(idx,df,synthetic):
             for j in range(-7,8):
                 for k in range(-7,8):
                     if synthetic:
-                        label_img[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        try:
+                            label_img[item[1].PosZ+i,item[1].PosY+k,item[1].PosX+j] = Label.from_abbreviation(item[1].Caption).value
+                        except:
+                            continue
                     else:
                         label_img[item[1].PosZ_resized+i,item[1].PosY_resized+k,item[1].PosX_resized+j] = Label.from_abbreviation(item[1].Caption).value
     

@@ -41,11 +41,11 @@ def main(
         lr=lr,
     )
     if compiled:
-        # torch._dynamo.config.suppress_errors = True
+        torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath=_PATH_MODELS + "/" + time,
+        dirpath=_PATH_MODELS + "/" + name + "-" + time,
         filename="UNet-{epoch}",
         monitor="val/focal_loss",
         mode="min",
@@ -59,7 +59,7 @@ def main(
 
     early_stopping_callback = EarlyStopping(
         monitor="val/focal_loss",
-        patience=10,
+        patience=25,
         verbose=True,
         mode="min",
         strict=False,
@@ -81,7 +81,7 @@ def main(
     trainer.fit(
         model,
         datamodule=bugnist,
-        ckpt_path=_PATH_MODELS + "/2023-09-20-1155/UNet-epoch=164.ckpt",
+        # ckpt_path=_PATH_MODELS + "/2023-09-20-1155/UNet-epoch=164.ckpt",
     )
 
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)

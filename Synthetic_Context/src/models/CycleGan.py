@@ -8,6 +8,7 @@ from torchsummary import summary
 import itertools
 import pytorch_lightning as pl
 from monai.networks.nets.unet import UNet
+import torchmetrics
 
 from src.models import PatchDiscriminator, ResnetGenerator
 from src.models.utils import ImagePool, init_weights, set_requires_grad
@@ -20,18 +21,18 @@ class CycleGan(pl.LightningModule):
         self.genX = UNet(spatial_dims=3,
                          in_channels=1,
                          out_channels=1,
-                         channels=(4, 8, 16, 32, 64, 128),
-                         strides=(2, 2, 2, 2, 2),
-                         num_res_units = 2
+                         channels=(4, 8, 16, 32, 64, 128, 256),
+                         strides=(2, 2, 2, 2, 2, 2),
+                         num_res_units = 3
                         )
 
         
         self.genY = UNet(spatial_dims=3,
                          in_channels=1,
                          out_channels=1,
-                         channels=(4, 8, 16, 32, 64, 128),
-                         strides=(2, 2, 2, 2, 2),
-                         num_res_units = 2
+                         channels=(4, 8, 16, 32, 64, 128, 256),
+                         strides=(2, 2, 2, 2, 2, 2),
+                         num_res_units = 3
                         )
         # self.genX = ResnetGenerator.get_generator()
         # self.genY = ResnetGenerator.get_generator()
@@ -46,6 +47,12 @@ class CycleGan(pl.LightningModule):
         self.genLoss = None
         self.disLoss = None
         self.automatic_optimization = False
+        self.accuracyDisX_train = torchmetrics.classification.Accuracy(task='binary')
+        self.accuracyDisY_train = torchmetrics.classification.Accuracy(task='binary')
+        self.accuracyDisX_test = torchmetrics.classification.Accuracy(task='binary')
+        self.accuracyDisY_test = torchmetrics.classification.Accuracy(task='binary')
+        self.accuracyDisX_val = torchmetrics.classification.Accuracy(task='binary')
+        self.accuracyDisY_val = torchmetrics.classification.Accuracy(task='binary')
 
         for m in [self.genX, self.genY, self.disX, self.disY]:
             init_weights(m)
@@ -62,8 +69,8 @@ class CycleGan(pl.LightningModule):
             lr=2e-4,
             betas=(0.5, 0.999),
         )
-
-        gamma = lambda epoch: 1 - max(0, epoch + 1 - 100) / 101
+        # gamma = lambda epoch: 1 - max(0, epoch + 1 - 5) / 101
+        gamma = lambda epoch: 0.95 ** epoch
         schG = LambdaLR(optG, lr_lambda=gamma)
         schD = LambdaLR(optD, lr_lambda=gamma)
         return [optG, optD], [schG, schD]
@@ -132,12 +139,12 @@ class CycleGan(pl.LightningModule):
         mseRealB = self.get_mse_loss(predRealB, "real")
 
         predFakeB = self.disY(fakeB)
-        mseFakeB = self.get_mse_loss(predFakeA, "fake")
+        mseFakeB = self.get_mse_loss(predFakeB, "fake")
 
         # gather all losses
         self.disLoss = 0.5 * (mseFakeA + mseRealA + mseFakeB + mseRealB)
 
-        return self.disLoss
+        return self.disLoss, predRealA, predFakeA, predRealB, predFakeB
 
     def training_step(self, batch, batch_idx):
         imgA, imgB = batch["A"], batch["B"]
@@ -155,20 +162,33 @@ class CycleGan(pl.LightningModule):
         optimizer_g.zero_grad()
         self.untoggle_optimizer(optimizer_g)
 
-        # if self.global_step % 2 == 1:
-        set_requires_grad([self.disX, self.disY], True)
-        self.toggle_optimizer(optimizer_d)
-        disLoss = self.discriminator_step(imgA, imgB)
-        self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
-        self.manual_backward(disLoss)
-        optimizer_d.step()
-        optimizer_d.zero_grad()
-        self.untoggle_optimizer(optimizer_d)
+        if self.global_step % 2 == 0:
+            set_requires_grad([self.disX, self.disY], True)
+            self.toggle_optimizer(optimizer_d)
+            disLoss, predRealA, predFakeA, predRealB, predFakeB = self.discriminator_step(imgA, imgB)
+        
+            self.accuracyDisX_train.update(predRealA, torch.ones_like(predRealA))
+            self.accuracyDisX_train.update(predFakeA, torch.zeros_like(predFakeA))
+            
+            self.accuracyDisY_train.update(predRealB, torch.ones_like(predRealB))
+            self.accuracyDisY_train.update(predFakeB, torch.zeros_like(predFakeB))
+            
+            self.log_dict({"train/dis_loss": disLoss.item()}, on_step=True, on_epoch=True)
+            self.manual_backward(disLoss)
+            optimizer_d.step()
+            optimizer_d.zero_grad()
+            self.untoggle_optimizer(optimizer_d)
+        
 
-        if self.trainer.is_last_batch:
-            sch1, sch2 = self.lr_schedulers()
-            sch1.step()
-            sch2.step()
+    def on_train_epoch_end(self):
+        self.log("train/accuracy_disX", self.accuracyDisX_train.compute(), on_step=False, on_epoch=True)
+        self.log("train/accuracy_disY", self.accuracyDisY_train.compute(), on_step=False, on_epoch=True)
+        self.accuracyDisX_train.reset()
+        self.accuracyDisY_train.reset()
+
+        sch1, sch2 = self.lr_schedulers()
+        sch1.step()
+        sch2.step()
 
     def validation_step(self, batch, batch_idx):
         imgA, imgB = batch["A"], batch["B"]
@@ -176,9 +196,20 @@ class CycleGan(pl.LightningModule):
 
         genLoss = self.generator_step(imgA, imgB)
         self.log_dict({"val/gen_loss": genLoss.item()}, on_step=False, on_epoch=True)
-        disLoss = self.discriminator_step(imgA, imgB)
+        disLoss, predRealA, predFakeA, predRealB, predFakeB = self.discriminator_step(imgA, imgB)
+        self.accuracyDisX_val.update(predRealA, torch.ones_like(predRealA))
+        self.accuracyDisX_val.update(predFakeA, torch.zeros_like(predFakeA))
+        
+        self.accuracyDisY_val.update(predRealB, torch.ones_like(predRealB))
+        self.accuracyDisY_val.update(predFakeB, torch.zeros_like(predFakeB))
+        
         self.log_dict({"val/dis_loss": disLoss.item()}, on_step=False, on_epoch=True)
         
+    def on_validation_epoch_end(self):
+        self.log("val/accuracy_disX", self.accuracyDisX_val.compute(), on_step=False, on_epoch=True)
+        self.log("val/accuracy_disY", self.accuracyDisY_val.compute(), on_step=False, on_epoch=True)
+        self.accuracyDisX_val.reset()
+        self.accuracyDisY_val.reset()
 
     def test_step(self, batch, batch_idx):
         imgA, imgB = batch["A"], batch["B"]
@@ -186,8 +217,20 @@ class CycleGan(pl.LightningModule):
 
         genLoss = self.generator_step(imgA, imgB)
         self.log_dict({"test/gen_loss": genLoss.item()}, on_step=False, on_epoch=True)
-        disLoss = self.discriminator_step(imgA, imgB)
+        disLoss, predRealA, predFakeA, predRealB, predFakeB = self.discriminator_step(imgA, imgB)
+        self.accuracyDisX_test.update(predRealA, torch.ones_like(predRealA))
+        self.accuracyDisX_test.update(predFakeA, torch.zeros_like(predFakeA))
+        
+        self.accuracyDisY_test.update(predRealB, torch.ones_like(predRealB))
+        self.accuracyDisY_test.update(predFakeB, torch.zeros_like(predFakeB))
+        
         self.log_dict({"test/dis_loss": disLoss.item()}, on_step=False, on_epoch=True)
+
+    def on_test_epoch_end(self):
+        self.log("test/accuracy_disX", self.accuracyDisX_test.compute(), on_step=False, on_epoch=True)
+        self.log("test/accuracy_disY", self.accuracyDisY_test.compute(), on_step=False, on_epoch=True)
+        self.accuracyDisX_test.reset()
+        self.accuracyDisY_test.reset()
 
 
 if __name__ == "__main__":
