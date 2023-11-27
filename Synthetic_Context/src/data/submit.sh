@@ -18,6 +18,7 @@ source ../../../../envs/thesis/bin/activate
 # Run main.py --help to get options
 
 python3 create_mixes.py
+python3 create_mapping_csv_for_dataloader.py
 # python3 prepare_cyclegan_data.py
 # python3 create_mixed_metric_labels.py --synthetic
 # python3 use_cyclegan.py

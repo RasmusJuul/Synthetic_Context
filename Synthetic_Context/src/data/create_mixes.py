@@ -11,6 +11,7 @@ import os
 from glob import glob
 import scipy.ndimage as ndi
 from scipy.special import softmax
+import argparse
 
 rng = np.random.RandomState(seed=42)
 labels=["BF","CF","PP","MA","BL","ML","SL","WO","BC","GH","AC","GP"]
@@ -181,70 +182,77 @@ def create_mix(bin, i, mode, new_mix, new_mix_label, df, ax0_bottom, ax0_top, ax
         
     return new_mix, new_mix_label, df, all_skipped
     
-def generate_mix(df, noise, i, mode, L):
+def generate_mix(df, noise, i, mode, L, with_noise=True):
     df = df[df[mode] == True].reset_index(drop=True)
+
+    if with_noise:
+        new_mix = tifffile.imread(rng.choice(noise))
+    else:
+        new_mix = np.zeros((256, 128, 128), dtype="uint8")
     
-    new_mix = tifffile.imread(rng.choice(noise))
+    
     ax2_top = new_mix.shape[2]
     ax2_bottom = 0
     ax1_top = new_mix.shape[1]
     ax1_bottom = 0
     ax0_top = new_mix.shape[0]
     ax0_bottom = 0
-    
-    for i in range(new_mix.shape[2]):
-        if np.any(new_mix[:, :, i] != 0):
-            ax2_bottom = i
-            break
-    for i in range(new_mix.shape[2] - 1, -1, -1):
-        if np.any(new_mix[:, :, i] != 0):
-            ax2_top = i
-            break
-    for i in range(new_mix.shape[1]):
-        if np.any(new_mix[:, i, :] != 0):
-            ax1_bottom = i
-            break
-    for i in range(new_mix.shape[1] - 1, -1, -1):
-        if np.any(new_mix[:, i, :] != 0):
-            ax1_top = i
-            break
-    for i in range(new_mix.shape[0]):
-        if np.any(new_mix[i, :, :] != 0):
-            ax0_bottom = i
-            break
-    for i in range(new_mix.shape[0] - 1, -1, -1):
-        if np.any(new_mix[i, :, :] != 0):
-            ax0_top = i
-            break
+
+    if with_noise:
+        for i in range(new_mix.shape[2]):
+            if np.any(new_mix[:, :, i] != 0):
+                ax2_bottom = i
+                break
+        for i in range(new_mix.shape[2] - 1, -1, -1):
+            if np.any(new_mix[:, :, i] != 0):
+                ax2_top = i
+                break
+        for i in range(new_mix.shape[1]):
+            if np.any(new_mix[:, i, :] != 0):
+                ax1_bottom = i
+                break
+        for i in range(new_mix.shape[1] - 1, -1, -1):
+            if np.any(new_mix[:, i, :] != 0):
+                ax1_top = i
+                break
+        for i in range(new_mix.shape[0]):
+            if np.any(new_mix[i, :, :] != 0):
+                ax0_bottom = i
+                break
+        for i in range(new_mix.shape[0] - 1, -1, -1):
+            if np.any(new_mix[i, :, :] != 0):
+                ax0_top = i
+                break
 
     new_mix_label = np.zeros((256, 128, 128), dtype="uint8")
     df_new = pd.DataFrame(columns=["Caption","PosX","PosY","PosZ"])
-    while True:
-        if len(L) != 0:
-            prob=[]
-            for name in labels:
-                prob.append(1-(L.count(name)*50)/len(L))
-            prob = softmax(prob)
-        else:
-            prob=[1/12]*12
     
+    if len(L) != 0:
+        prob=[]
+        for name in labels:
+            prob.append(1-(L.count(name)*50)/len(L))
+        prob = softmax(prob)
+    else:
+        prob=[1/12]*12
+        
+    while True:
         composition = rng.choice(labels,size=20,p=prob)
         bin = get_bin(df, composition, ax0_bottom, ax0_top, ax1_bottom, ax1_top, ax2_bottom, ax2_top)
-        for item in bin.items:
-            L.extend([item.name.split("/")[0]])
     
         new_mix, new_mix_label, df_new, all_skipped = create_mix(bin, i, mode, new_mix, new_mix_label, df_new, ax0_bottom, ax0_top, ax1_bottom, ax1_top, ax2_bottom, ax2_top)
         if all_skipped:
             break
+            
+    L.extend(df_new.Caption.tolist())
     return L, new_mix, new_mix_label, df_new
 
-def save_files(mode,new_mix,new_mix_label,df):
+def save_files(mode,new_mix,new_mix_label,df,i,folder_name):
     subfolders = glob(
-        "**/", root_dir="/".join([_PATH_DATA, f"synthetic_mixed_256/{mode}"])
+        "**/", root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"])
     )
     if len(subfolders) == 0:
         os.makedirs(
-            _PATH_DATA + f"/synthetic_mixed_256/{mode}/{str(len(subfolders)).zfill(2)}",
+            _PATH_DATA + f"/{folder_name}/{mode}/{str(len(subfolders)).zfill(2)}",
             exist_ok=True,
         )
         subfolder = str(len(subfolders)).zfill(2)
@@ -254,7 +262,7 @@ def save_files(mode,new_mix,new_mix_label,df):
                 len(
                     glob(
                         subfolder + "*.tif",
-                        root_dir="/".join([_PATH_DATA, f"synthetic_mixed_256/{mode}"]),
+                        root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"]),
                     )
                 )
                 < 200
@@ -265,58 +273,71 @@ def save_files(mode,new_mix,new_mix_label,df):
         len(
             glob(
                 subfolder + "*.tif",
-                root_dir="/".join([_PATH_DATA, f"synthetic_mixed_256/{mode}"]),
+                root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"]),
             )
         )
         >= 200
     ):
         os.makedirs(
-            _PATH_DATA + f"/synthetic_mixed_256/{mode}/{str(len(subfolders)).zfill(2)}",
+            _PATH_DATA + f"/{folder_name}/{mode}/{str(len(subfolders)).zfill(2)}",
             exist_ok=True,
         )
         subfolder = str(len(subfolders)).zfill(2)
 
     tifffile.imwrite(
-        f"{_PATH_DATA}/synthetic_mixed_256/{mode}/{subfolder}/mix_{str(i).zfill(5)}.tif",
+        f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/mix_{str(i).zfill(5)}.tif",
         new_mix,
     )
     tifffile.imwrite(
-        f"{_PATH_DATA}/synthetic_mixed_256/{mode}/{subfolder}/label_{str(i).zfill(5)}.tif",
+        f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/label_{str(i).zfill(5)}.tif",
         new_mix_label,
     )
 
-    df.to_csv(f"{_PATH_DATA}/synthetic_mixed_256/{mode}/{subfolder}/centroids_{str(i).zfill(5)}.csv",sep=";",index=False)
+    df.to_csv(f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/centroids_{str(i).zfill(5)}.csv",sep=";",index=False,encoding="utf-8")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="create synthetic mixes"
+    )
+    parser.add_argument("--noise", action="store_true", help="if true create put insects into a random noise file")
+    args = parser.parse_args()
+
     df = pd.read_csv("/".join([_PATH_DATA, "bugnist_256_cut/splits.csv"]))
     df["label"] = df.filename.apply(lambda x: x.split("/")[0])
     noise = glob(_PATH_DATA + "/noise/*.tif")
+    
+    with_noise = args.noise
+    
+    if with_noise:
+        folder_name = "synthetic_mixed_256"
+    else:
+        folder_name = "synthetic_mixed_256_no_noise"
 
     for i in range(int(5000*3 / 200)):
         os.makedirs(
-            _PATH_DATA + f"/synthetic_mixed_256/train/{str(i).zfill(2)}", exist_ok=True
+            _PATH_DATA + f"/{folder_name}/train/{str(i).zfill(2)}", exist_ok=True
         )
     for i in range(int(500*3 / 200)):
         os.makedirs(
-            _PATH_DATA + f"/synthetic_mixed_256/test/{str(i).zfill(2)}", exist_ok=True
+            _PATH_DATA + f"/{folder_name}/test/{str(i).zfill(2)}", exist_ok=True
         )
     for i in range(int(500*3 / 200)):
         os.makedirs(
-            _PATH_DATA + f"/synthetic_mixed_256/validation/{str(i).zfill(2)}",
+            _PATH_DATA + f"/{folder_name}/validation/{str(i).zfill(2)}",
             exist_ok=True,
         )
 
     L = []
-    for i in tqdm(range(2000), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L)
-        save_files("train",new_mix,new_mix_label,df_new)
+    for i in tqdm(range(5000), unit="image", desc="creating mixed images"):
+        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L,with_noise)
+        save_files("train",new_mix,new_mix_label,df_new,i,folder_name)
     L = []
-    for i in tqdm(range(100), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L)
-        save_files("test",new_mix,new_mix_label,df_new)
+    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L,with_noise)
+        save_files("test",new_mix,new_mix_label,df_new,i,folder_name)
     L = []
-    for i in tqdm(range(100), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L)
-        save_files("validation",new_mix,new_mix_label,df_new)
+    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L,with_noise)
+        save_files("validation",new_mix,new_mix_label,df_new,i,folder_name)
 

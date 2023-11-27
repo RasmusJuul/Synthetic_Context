@@ -20,7 +20,7 @@ from skimage.transform import resize
 from tifffile import tifffile
 from torch import Tensor
 from torch.utils.data import DataLoader
-from torchvision.transforms import RandomRotation
+from monai import transforms
 
 
 class ImageFolder:
@@ -171,6 +171,9 @@ class MetricDataset(Dataset):
         y = y.to(torch.long)
 
         return X, y
+
+    def get_name_of_image(self, idx: int) -> str:
+        return self.image_paths[idx].split("/")[-1].split(".")[0]
         
 
 class Label(IntEnum):
@@ -225,10 +228,10 @@ class SplitType(Enum):
 
 # Dataloader for images of synthetic mixes or synthetic mixes generated with a cyclegan
 class BugNIST_mix(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42, gan=False):
+    def __init__(self, type: SplitType, seed=42, gan=False, transform=False,no_noise=False,old=False):
         dataset_path = _PATH_DATA
 
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan)
+        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, no_noise,old)
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
@@ -236,10 +239,27 @@ class BugNIST_mix(torch.utils.data.Dataset):
             os.path.join(dataset_path, path) for path in self.label_paths
         ]
         self.rng = np.random.default_rng(seed=seed)
+        
+        self.transforms_img = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                                  transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                                  transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                                  transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                  ])
+        
+        self.transforms_label = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                                    transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                    ])
+        
+        self.transforms_img = self.transforms_img.set_random_state(seed=seed)
+        self.transforms_label = self.transforms_label.set_random_state(seed=seed)
+        
+        self.transform = transform
 
     @staticmethod
     def dataset_images(
-        dataset_path: str, type: SplitType, gan: bool
+        dataset_path: str, type: SplitType, gan: bool, no_noise: bool, old: bool,
     ) -> tuple[list[str], list[str]]:
         assert len(SplitType) == 3
         # file_name = "train_mix" if type == SplitType.Train else "test_mix" if type == SplitType.Test else "validation_mix"
@@ -250,6 +270,10 @@ class BugNIST_mix(torch.utils.data.Dataset):
             if type == SplitType.Test
             else "validation"
         )
+        if no_noise:
+            file_name += "_no_noise"
+        elif old:
+            file_name += "_old"
         files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
         if gan:
             return files.gan_img_path.to_list(), files.label_path.to_list()
@@ -266,10 +290,17 @@ class BugNIST_mix(torch.utils.data.Dataset):
         image = tifffile.imread(image_path)
         label = tifffile.imread(label_path)
 
-        image = np.expand_dims(image, 0)
-
         X = torch.Tensor(image)
+        X = X.unsqueeze(dim=0)
         y = torch.Tensor(label)
+        y = y.unsqueeze(dim=0)
+        
+        if self.transform:
+            X = self.transforms_img(X)
+            y = self.transforms_label(y)
+
+        X = X.to(torch.float32)
+        y = y.squeeze(dim=0)
         y = y.to(torch.long)
 
         return X, y
@@ -431,6 +462,8 @@ class BugNISTDataModule(pl.LightningDataModule):
         num_workers: int = 0,
         seed: int = 42,
         mix: bool = False,
+        no_noise: bool = False,
+        old: bool = False,
     ):
         super().__init__()
         self.data_dir = data_dir
@@ -438,19 +471,21 @@ class BugNISTDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.seed = seed
         self.mix = mix
+        self.no_noise = no_noise
+        self.old = old
 
     def setup(self, stage=None):
         if stage == "test" or stage is None:
             if self.mix:
-                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, gan=True)
+                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False)
             else:
                 self.bugnist_test = BugNIST(type=SplitType.Test, seed=self.seed)
 
         if stage == "fit" or stage is None:
             if self.mix:
-                self.bugnist_train = BugNIST_mix(type=SplitType.Train, seed=self.seed, gan=True)
+                self.bugnist_train = BugNIST_mix(type=SplitType.Train, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False,transform=True)
                 self.bugnist_val = BugNIST_mix(
-                    type=SplitType.Validation, seed=self.seed, gan=True
+                    type=SplitType.Validation, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False,
                 )
             else:
                 self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)

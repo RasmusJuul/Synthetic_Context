@@ -123,4 +123,9 @@ class UNet_pl(UNet, LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5, cooldown=2)
+        lr_scheduler_config = {
+            "scheduler": lr_scheduler,
+            "interval": "epoch",
+            "monitor": "val/focal_loss",}
+        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}

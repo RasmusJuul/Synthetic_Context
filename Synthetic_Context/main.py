@@ -19,6 +19,7 @@ def main(
     test_: bool,
     mix: bool,
     cyclegan: bool,
+    seed: int
 ):
     torch.cuda.empty_cache()
     if cyclegan:
@@ -42,6 +43,7 @@ def main(
             batch_size=batch_size,
             compiled=compiled,
             mix=mix,
+            seed=seed,
         )
 
 
@@ -77,6 +79,12 @@ if __name__ == "__main__":
         help="if true train on artificially created mixed samples",
     )
     parser.add_argument("--gan", action="store_true", help="if true train cyclegan")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="seed for RNG",
+        default=1234,
+    )
     args = parser.parse_args()
 
     main(
@@ -89,4 +97,5 @@ if __name__ == "__main__":
         test_=args.test,
         mix=args.mix,
         cyclegan=args.gan,
+        seed=args.seed,
     )

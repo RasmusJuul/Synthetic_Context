@@ -2,23 +2,31 @@ from glob import glob
 import pandas as pd
 import numpy as np
 from src import _PATH_DATA
+import argparse
 
 
-def create_csv(split):
-    img_path = glob(f"synthetic_mixed_256/{split}/**/mix*.tif",root_dir=_PATH_DATA)
-    gan_img_path = glob(f"synthetic_gan/{split}/**/mix*.tif",root_dir=_PATH_DATA)
-    label_path = glob(f"synthetic_mixed_256/{split}/**/label*.tif",root_dir=_PATH_DATA)
-    centroid_path = glob(f"synthetic_mixed_256/{split}/**/*.csv",root_dir=_PATH_DATA)
+def create_csv(split,no_noise=False,old=False):
+    if no_noise:
+        folder_name = "synthetic_mixed_256_no_noise"
+    elif old:
+        folder_name = "synthetic_mixed_256_old"
+    else:
+        folder_name = "synthetic_mixed_256"
+        
+    img_path = glob(f"{folder_name}/{split}/**/mix*.tif",root_dir=_PATH_DATA)
+    # gan_img_path = glob(f"synthetic_gan/{split}/**/mix*.tif",root_dir=_PATH_DATA)
+    label_path = glob(f"{folder_name}/{split}/**/label*.tif",root_dir=_PATH_DATA)
+    centroid_path = glob(f"{folder_name}/{split}/**/*.csv",root_dir=_PATH_DATA)
     label_path.sort()
     img_path.sort()
     centroid_path.sort()
-    gan_img_path.sort()
+    # gan_img_path.sort()
     df = pd.DataFrame()
     
     df["img_path"] = img_path
     df["label_path"] = ""
     df["centroid_path"] = ""
-    df["gan_img_path"] = ""
+    # df["gan_img_path"] = ""
     
     df["index"] = df.img_path.apply(lambda x: x.split("/")[-1][4:-4])
     df.set_index("index",inplace=True)
@@ -29,10 +37,15 @@ def create_csv(split):
     for path in centroid_path:
         df.loc[path.split("/")[-1][10:-4],"centroid_path"] = path
         
-    for path in gan_img_path:
-        df.loc[path.split("/")[-1][4:-4],"gan_img_path"] = path
-    
-    df.to_csv(_PATH_DATA+f"/{split}.csv", index=False)
+    # for path in gan_img_path:
+    #     df.loc[path.split("/")[-1][4:-4],"gan_img_path"] = path
+
+    if no_noise:
+        df.to_csv(_PATH_DATA+f"/{split}_no_noise.csv", index=False, encoding="utf-8")
+    elif old:
+        df.to_csv(_PATH_DATA+f"/{split}_old.csv", index=False, encoding="utf-8")
+    else:
+        df.to_csv(_PATH_DATA+f"/{split}.csv", index=False, encoding="utf-8")
 
 def create_mixed_and_label_paths_csv():
     img_path = glob("cyclegan_256/*B/**/*.tif",root_dir=_PATH_DATA)
@@ -58,7 +71,14 @@ def create_mixed_and_label_paths_csv():
     df.to_csv(_PATH_DATA+"/mixed_and_label_paths.csv",index=False)
 
 if __name__ == "__main__":
-    create_csv("test")
-    create_csv("train")
-    create_csv("validation")
-    create_mixed_and_label_paths_csv()
+    parser = argparse.ArgumentParser(
+        description="create synthetic mixes"
+    )
+    parser.add_argument("--no_noise", action="store_true", help="")
+    parser.add_argument("--old", action="store_true", help="")
+    args = parser.parse_args()
+    
+    create_csv("test",args.no_noise,args.old)
+    create_csv("train",args.no_noise,args.old)
+    create_csv("validation",args.no_noise,args.old)
+    # create_mixed_and_label_paths_csv()

@@ -25,8 +25,9 @@ def main(
     batch_size: int = 16,
     compiled: bool = False,
     mix: bool = False,
+    seed: int = 1234
 ):
-    seed_everything(1234, workers=True)
+    seed_everything(seed, workers=True)
 
     time = str(datetime.datetime.now())[:-10].replace(" ", "-").replace(":", "")
 
@@ -56,6 +57,8 @@ def main(
     bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers, mix=mix)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
+    
+    lr_monitor = LearningRateMonitor(logging_interval="epoch")
 
     early_stopping_callback = EarlyStopping(
         monitor="val/focal_loss",
@@ -73,7 +76,7 @@ def main(
         deterministic=False,
         default_root_dir=_PROJECT_ROOT,
         precision="16-mixed",
-        callbacks=[checkpoint_callback, early_stopping_callback],
+        callbacks=[checkpoint_callback, early_stopping_callback,lr_monitor],
         log_every_n_steps=25,
         logger=wandb_logger,
     )
@@ -81,7 +84,7 @@ def main(
     trainer.fit(
         model,
         datamodule=bugnist,
-        # ckpt_path=_PATH_MODELS + "/2023-09-20-1155/UNet-epoch=164.ckpt",
+        # ckpt_path=_PATH_MODELS + "/UNet-2023-11-01-1303/UNet-epoch=397.ckpt",
     )
 
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)
