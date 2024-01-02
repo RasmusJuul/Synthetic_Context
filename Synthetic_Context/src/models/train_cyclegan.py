@@ -24,12 +24,13 @@ def main(
     lr: float = 1e-4,
     batch_size: int = 16,
     compiled: bool = False,
+    seed: int = 1234,
 ):
-    seed_everything(1234, workers=True)
+    seed_everything(seed, workers=True)
 
     time = str(datetime.datetime.now())[:-10].replace(" ", "-").replace(":", "")
 
-    torch.set_float32_matmul_precision("medium")
+    # torch.set_float32_matmul_precision("medium")
 
     model = CycleGan()
 
@@ -66,15 +67,14 @@ def main(
         accelerator="gpu",
         deterministic=False,
         default_root_dir=_PROJECT_ROOT,
-        precision="16-mixed",
+        precision="32-true",#"16-mixed",
         callbacks=[checkpoint_callback, lr_monitor, early_stopping_callback],
         log_every_n_steps=25,
         logger=wandb_logger,
-        # strategy='ddp_find_unused_parameters_true'
     )
 
     trainer.fit(
         model,
         datamodule=datamodule,
-        ckpt_path=_PATH_MODELS + "/CycleGAN_UNet-2023-10-19-0921/CycleGAN-epoch=29.ckpt",
+        # ckpt_path=_PATH_MODELS + "/CycleGAN_TPWN-2023-11-28-1535/CycleGAN-epoch=43.ckpt",
     )

@@ -19,7 +19,9 @@ def main(
     test_: bool,
     mix: bool,
     cyclegan: bool,
-    seed: int
+    seed: int,
+    umap_subset: bool,
+    pca_subset: bool,
 ):
     torch.cuda.empty_cache()
     if cyclegan:
@@ -29,6 +31,7 @@ def main(
             num_workers=num_workers,
             batch_size=batch_size,
             compiled=compiled,
+            seed=seed,
         )
     elif test_:
         test(
@@ -44,6 +47,8 @@ def main(
             compiled=compiled,
             mix=mix,
             seed=seed,
+            umap_subset=umap_subset,
+            pca_subset=pca_subset,
         )
 
 
@@ -80,6 +85,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--gan", action="store_true", help="if true train cyclegan")
     parser.add_argument(
+        "--umap_subset",
+        action="store_true",
+        help="If True, uses a subset of the training data closest to real images in a UMAP (Uniform Manifold Approximation and Projection).")
+    parser.add_argument(
+        "--pca_subset",
+        action="store_true",
+        help="If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca.")
+    parser.add_argument(
         "--seed",
         type=int,
         help="seed for RNG",
@@ -98,4 +111,6 @@ if __name__ == "__main__":
         mix=args.mix,
         cyclegan=args.gan,
         seed=args.seed,
+        umap_subset=args.umap_subset,
+        pca_subset=args.pca_subset,
     )

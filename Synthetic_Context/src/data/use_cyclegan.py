@@ -29,7 +29,7 @@ def run_model(model,file):
 
 if __name__ == "__main__":
     model = CycleGan()
-    model_path = "/".join([_PATH_MODELS,"CycleGAN_UNet-2023-10-19-0921/CycleGAN-epoch=29.ckpt"])
+    model_path = "/".join([_PATH_MODELS,"CycleGAN_TPWN-2023-11-29-2038/CycleGAN-epoch=69.ckpt"])
     model.load_state_dict(torch.load(model_path, map_location=None)['state_dict'], strict=True)
     torch._dynamo.config.suppress_errors = True
     model = torch.compile(model)

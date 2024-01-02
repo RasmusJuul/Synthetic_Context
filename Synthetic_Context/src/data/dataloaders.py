@@ -22,23 +22,24 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from monai import transforms
 
-
+# Represents a folder containing images
 class ImageFolder:
     def __init__(self, root):
         self.root = root
-
+        # Retrieve paths of all TIFF images within the specified root directory
         self.paths = glob("**/*.tif", root_dir=root)
 
     def __len__(self):
         return len(self.paths)
 
     def __getitem__(self, idx):  # doesnt support slices, we dont want them
+        # Retrieve image path and load TIFF image at the specified index
         idx = idx % len(self)
         return os.path.join(self.root, self.paths[idx]), tifffile.imread(
             os.path.join(self.root, self.paths[idx])
         )
 
-
+# Represents an unpaired dataset consisting of images from folders 'A' and 'B'
 class UnpairedDataset(Dataset):
     def __init__(self, root: str = "cyclegan_256", mode: str = "train"):
         """
@@ -52,7 +53,7 @@ class UnpairedDataset(Dataset):
         super().__init__()
 
         root = os.path.join(_PATH_DATA, root)
-        # pathA = os.path.join(_PATH_DATA,f"synthetic_mixed_256/{mode}")
+        # Prepare paths for mode A and mode B
         pathA = os.path.join(root, mode + "A")
         self.dirA = ImageFolder(pathA)
 
@@ -71,6 +72,7 @@ class UnpairedDataset(Dataset):
         image = torch.Tensor(image, dtype=torch.float)
         return path, image
 
+    # Load images from folder A and B in an unpaired manner
     def __getitem__(self, idx):  # doesnt support slices, we dont want them
         # we use serial batching
         pathA, imgA = self.dirA[idx]
@@ -104,7 +106,7 @@ class CycleGANDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         if stage == "test" or stage is None:
-            self.cyclegan_test = UnpairedDataset(mode="test")
+            self.cyclegan_test = UnpairedDataset(mode="validation")
 
         if stage == "fit" or stage is None:
             self.cyclegan_train = UnpairedDataset(mode="train")
@@ -177,6 +179,10 @@ class MetricDataset(Dataset):
         
 
 class Label(IntEnum):
+    """
+    Represents label enumeration for different categories.
+    Contains different categories with assigned integer values and abbreviation methods.
+    """
     Blowfly = (3,)
     CurlyWingedFly = (6,)
     Pupae = (10,)
@@ -222,16 +228,32 @@ class Label(IntEnum):
 
 
 class SplitType(Enum):
+    """
+    Represents enum for different split types (train, validation, test)
+    """
     Train = auto()
     Validation = auto()
     Test = auto()
 
 # Dataloader for images of synthetic mixes or synthetic mixes generated with a cyclegan
 class BugNIST_mix(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42, gan=False, transform=False,no_noise=False,old=False):
+    def __init__(self, type: SplitType, seed=42, gan=False, transform=False,no_noise=False,old=False,umap_subset=False,pca_subset=False):
+        """
+        A PyTorch Dataset handling synthetic mixed images or images generated with a CycleGAN.
+
+        Args:
+        - type (SplitType): Indicates the split type of the dataset, such as train, validation, or test.
+        - seed (int): Random seed for reproducibility. Defaults to 42.
+        - gan (bool): If True, represents synthetic mixes run through a Generative Adversarial Network (GAN). Defaults to False.
+        - transform (bool): If True, applies transformations to the images. Defaults to False.
+        - no_noise (bool): If True, uses synthetic mixes without added noise. Defaults to False.
+        - old (bool): If True, uses an older version of synthetic mixes, where insects are further from each other and with no added noise. Defaults to False.
+        - umap_subset (bool): If True, uses a subset of the training data that is closest to real images in a Uniform Manifold Approximation and Projection (UMAP). Defaults to False.
+        - pca_subset (bool): If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca. Defaults to False.
+        """
         dataset_path = _PATH_DATA
 
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, no_noise,old)
+        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, no_noise, old, umap_subset, pca_subset)
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
@@ -259,10 +281,9 @@ class BugNIST_mix(torch.utils.data.Dataset):
 
     @staticmethod
     def dataset_images(
-        dataset_path: str, type: SplitType, gan: bool, no_noise: bool, old: bool,
+        dataset_path: str, type: SplitType, gan: bool, no_noise: bool, old: bool, umap_subset: bool, pca_subset: bool
     ) -> tuple[list[str], list[str]]:
         assert len(SplitType) == 3
-        # file_name = "train_mix" if type == SplitType.Train else "test_mix" if type == SplitType.Test else "validation_mix"
         file_name = (
             "train"
             if type == SplitType.Train
@@ -274,6 +295,10 @@ class BugNIST_mix(torch.utils.data.Dataset):
             file_name += "_no_noise"
         elif old:
             file_name += "_old"
+        elif umap_subset:
+            file_name += "_umap_subset"
+        elif pca_subset:
+            file_name += "_pca_subset"
         files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
         if gan:
             return files.gan_img_path.to_list(), files.label_path.to_list()
@@ -435,11 +460,6 @@ class BugNIST(torch.utils.data.Dataset):
         target = target.to(dtype=torch.long)
         target = target.squeeze(dim=0)
 
-        # # One-hot encode
-        # target = torch.nn.functional.one_hot(target, num_classes=13)
-        # # Convert from NHWDC to NCHWD
-        # target = target.permute(0, 4, 1, 2, 3)
-
         return X, target
 
     @staticmethod
@@ -464,7 +484,25 @@ class BugNISTDataModule(pl.LightningDataModule):
         mix: bool = False,
         no_noise: bool = False,
         old: bool = False,
+        gan: bool = False,
+        umap_subset: bool = False,
+        pca_subset: bool = False,
     ):
+        """
+        Initializes the BugNISTDataModule.
+
+        Args:
+        - data_dir (str): The directory path where the BugNIST dataset is located.
+        - batch_size (int): The batch size for data loaders.
+        - num_workers (int): The number of workers for data loading.
+        - seed (int): The random seed for reproducibility.
+        - mix (bool): If True, uses synthetic mixes; otherwise, uses images with one insect per image.
+        - no_noise (bool): If True, uses synthetic mixes without added noise.
+        - old (bool): If True, uses an older version of synthetic mixes with insects further from each other and without added noise.
+        - gan (bool): If True, uses synthetic mixes run through a GAN (Generative Adversarial Network).
+        - umap_subset (bool): If True, uses a subset of the training data closest to real images in a UMAP (Uniform Manifold Approximation and Projection).
+        - pca_subset (bool): If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca.
+        """
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -473,25 +511,38 @@ class BugNISTDataModule(pl.LightningDataModule):
         self.mix = mix
         self.no_noise = no_noise
         self.old = old
+        self.gan = gan
+        self.umap_subset = umap_subset
+        self.pca_subset = pca_subset
 
     def setup(self, stage=None):
+        """
+        Setup datasets for different stages (e.g., 'fit', 'test').
+
+        Args:
+        - stage (str, optional): The stage for which data needs to be set up. Defaults to None.
+        """
         if stage == "test" or stage is None:
             if self.mix:
-                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False)
+                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan)
             else:
                 self.bugnist_test = BugNIST(type=SplitType.Test, seed=self.seed)
 
         if stage == "fit" or stage is None:
             if self.mix:
-                self.bugnist_train = BugNIST_mix(type=SplitType.Train, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False,transform=True)
+                self.bugnist_train = BugNIST_mix(
+                    type=SplitType.Train, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan, umap_subset=self.umap_subset, pca_subset=self.pca_subset, transform=True)
                 self.bugnist_val = BugNIST_mix(
-                    type=SplitType.Validation, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=False,
+                    type=SplitType.Validation, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan,
                 )
             else:
                 self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)
                 self.bugnist_val = BugNIST(type=SplitType.Validation, seed=self.seed)
 
     def train_dataloader(self):
+        """
+        Returns the training data loader.
+        """
         return DataLoader(
             self.bugnist_train,
             batch_size=self.batch_size,
@@ -501,6 +552,9 @@ class BugNISTDataModule(pl.LightningDataModule):
         )
 
     def val_dataloader(self):
+        """
+        Returns the validation data loader.
+        """
         return DataLoader(
             self.bugnist_val,
             batch_size=self.batch_size,
@@ -509,6 +563,9 @@ class BugNISTDataModule(pl.LightningDataModule):
         )
 
     def test_dataloader(self):
+        """
+        Returns the test data loader.
+        """
         return DataLoader(
             self.bugnist_test,
             batch_size=self.batch_size,

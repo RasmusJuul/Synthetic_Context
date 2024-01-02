@@ -13,7 +13,7 @@ import scipy.ndimage as ndi
 from scipy.special import softmax
 import argparse
 
-rng = np.random.RandomState(seed=42)
+rng = np.random.RandomState(seed=1337)
 labels=["BF","CF","PP","MA","BL","ML","SL","WO","BC","GH","AC","GP"]
 
 def get_bin(df, composition, ax0_bottom, ax0_top, ax1_bottom, ax1_top, ax2_bottom, ax2_top):
@@ -179,7 +179,7 @@ def create_mix(bin, i, mode, new_mix, new_mix_label, df, ax0_bottom, ax0_top, ax
 
     if skipped == len(bin.items):
         all_skipped = True
-        
+
     return new_mix, new_mix_label, df, all_skipped
     
 def generate_mix(df, noise, i, mode, L, with_noise=True):
@@ -248,22 +248,21 @@ def generate_mix(df, noise, i, mode, L, with_noise=True):
 
 def save_files(mode,new_mix,new_mix_label,df,i,folder_name):
     subfolders = glob(
-        "**/", root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"])
+        "**/", root_dir=f"{_PATH_DATA}/{folder_name}/{mode}"
     )
     if len(subfolders) == 0:
         os.makedirs(
-            _PATH_DATA + f"/{folder_name}/{mode}/{str(len(subfolders)).zfill(2)}",
+            f"{_PATH_DATA}/{folder_name}/{mode}/{str(len(subfolders)).zfill(3)}",
             exist_ok=True,
         )
-        subfolder = str(len(subfolders)).zfill(2)
+        subfolder = str(len(subfolders)).zfill(3)
     else:
         for subfolder in subfolders:
             if (
                 len(
                     glob(
                         subfolder + "*.tif",
-                        root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"]),
-                    )
+                        root_dir=f"{_PATH_DATA}/{folder_name}/{mode}")
                 )
                 < 200
             ):
@@ -273,16 +272,15 @@ def save_files(mode,new_mix,new_mix_label,df,i,folder_name):
         len(
             glob(
                 subfolder + "*.tif",
-                root_dir="/".join([_PATH_DATA, f"{folder_name}/{mode}"]),
-            )
+                root_dir=f"{_PATH_DATA}/{folder_name}/{mode}"),
         )
         >= 200
     ):
         os.makedirs(
-            _PATH_DATA + f"/{folder_name}/{mode}/{str(len(subfolders)).zfill(2)}",
+            f"{_PATH_DATA}/{folder_name}/{mode}/{str(len(subfolders)).zfill(3)}",
             exist_ok=True,
         )
-        subfolder = str(len(subfolders)).zfill(2)
+        subfolder = str(len(subfolders)).zfill(3)
 
     tifffile.imwrite(
         f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/mix_{str(i).zfill(5)}.tif",
@@ -300,44 +298,44 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="create synthetic mixes"
     )
-    parser.add_argument("--noise", action="store_true", help="if true create put insects into a random noise file")
+    parser.add_argument("--no_noise", action="store_true", help="if true don't insert insects into noise (leafs, sawdust, cotton)")
     args = parser.parse_args()
 
     df = pd.read_csv("/".join([_PATH_DATA, "bugnist_256_cut/splits.csv"]))
     df["label"] = df.filename.apply(lambda x: x.split("/")[0])
     noise = glob(_PATH_DATA + "/noise/*.tif")
     
-    with_noise = args.noise
+    with_noise = not args.no_noise
     
     if with_noise:
         folder_name = "synthetic_mixed_256"
     else:
         folder_name = "synthetic_mixed_256_no_noise"
 
-    for i in range(int(5000*3 / 200)):
-        os.makedirs(
-            _PATH_DATA + f"/{folder_name}/train/{str(i).zfill(2)}", exist_ok=True
-        )
-    for i in range(int(500*3 / 200)):
-        os.makedirs(
-            _PATH_DATA + f"/{folder_name}/test/{str(i).zfill(2)}", exist_ok=True
-        )
-    for i in range(int(500*3 / 200)):
-        os.makedirs(
-            _PATH_DATA + f"/{folder_name}/validation/{str(i).zfill(2)}",
-            exist_ok=True,
-        )
+    # for i in range(int(5000*3 / 200)):
+    #     os.makedirs(
+    #         _PATH_DATA + f"/{folder_name}/train/{str(i).zfill(3)}", exist_ok=True
+    #     )
+    # for i in range(int(500*3 / 200)):
+    #     os.makedirs(
+    #         _PATH_DATA + f"/{folder_name}/test/{str(i).zfill(3)}", exist_ok=True
+    #     )
+    # for i in range(int(500*3 / 200)):
+    #     os.makedirs(
+    #         _PATH_DATA + f"/{folder_name}/validation/{str(i).zfill(3)}",
+    #         exist_ok=True,
+    #     )
 
     L = []
-    for i in tqdm(range(5000), unit="image", desc="creating mixed images"):
+    for i in tqdm(range(15849,20000), unit="image", desc="creating mixed images"):
         L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L,with_noise)
         save_files("train",new_mix,new_mix_label,df_new,i,folder_name)
-    L = []
-    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L,with_noise)
-        save_files("test",new_mix,new_mix_label,df_new,i,folder_name)
-    L = []
-    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L,with_noise)
-        save_files("validation",new_mix,new_mix_label,df_new,i,folder_name)
+    # L = []
+    # for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+    #     L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L,with_noise)
+    #     save_files("test",new_mix,new_mix_label,df_new,i,folder_name)
+    # L = []
+    # for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+    #     L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L,with_noise)
+    #     save_files("validation",new_mix,new_mix_label,df_new,i,folder_name)
 

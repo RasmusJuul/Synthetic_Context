@@ -18,24 +18,22 @@ class CycleGan(pl.LightningModule):
     def __init__(self):
         super().__init__()
         # generator pair
-        self.genX = UNet(spatial_dims=3,
-                         in_channels=1,
-                         out_channels=1,
-                         channels=(4, 8, 16, 32, 64, 128, 256),
-                         strides=(2, 2, 2, 2, 2, 2),
-                         num_res_units = 3
-                        )
+        self.genX = model = UNet(spatial_dims=3,
+                                    in_channels=1,
+                                    out_channels=1,
+                                    channels=(16, 32, 64, 128, 256, 512),
+                                    strides=(2, 2, 2, 2, 2),
+                                    num_res_units = 3,
+                                )
 
         
         self.genY = UNet(spatial_dims=3,
                          in_channels=1,
                          out_channels=1,
-                         channels=(4, 8, 16, 32, 64, 128, 256),
-                         strides=(2, 2, 2, 2, 2, 2),
-                         num_res_units = 3
+                         channels=(16, 32, 64, 128, 256, 512),
+                         strides=(2, 2, 2, 2, 2),
+                         num_res_units = 3,
                         )
-        # self.genX = ResnetGenerator.get_generator()
-        # self.genY = ResnetGenerator.get_generator()
 
         # discriminator pair
         self.disX = PatchDiscriminator.get_model()
@@ -60,13 +58,13 @@ class CycleGan(pl.LightningModule):
     def configure_optimizers(self):
         optG = Adam(
             itertools.chain(self.genX.parameters(), self.genY.parameters()),
-            lr=2e-4,
+            lr=1e-4,#2e-4
             betas=(0.5, 0.999),
         )
 
         optD = Adam(
             itertools.chain(self.disX.parameters(), self.disY.parameters()),
-            lr=2e-4,
+            lr=1e-4,#2e-4
             betas=(0.5, 0.999),
         )
         # gamma = lambda epoch: 1 - max(0, epoch + 1 - 5) / 101

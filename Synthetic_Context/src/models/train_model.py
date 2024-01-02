@@ -25,7 +25,9 @@ def main(
     batch_size: int = 16,
     compiled: bool = False,
     mix: bool = False,
-    seed: int = 1234
+    seed: int = 1234,
+    umap_subset: bool = False,
+    pca_subset: bool = False,
 ):
     seed_everything(seed, workers=True)
 
@@ -33,14 +35,26 @@ def main(
 
     torch.set_float32_matmul_precision("medium")
 
+    #UNet normal
+    # model = UNet_pl(
+    #     spatial_dims=3,
+    #     in_channels=1,
+    #     out_channels=13,
+    #     channels=(4, 8, 16, 32, 64),
+    #     strides=(2, 2, 2, 2),
+    #     lr=lr,
+    # )
+    #UNet large
     model = UNet_pl(
         spatial_dims=3,
         in_channels=1,
         out_channels=13,
-        channels=(4, 8, 16, 32, 64),
-        strides=(2, 2, 2, 2),
+        channels=(16, 32, 64, 128, 256, 512),
+        strides=(2, 2, 2, 2, 2),
+        num_res_units = 3,
         lr=lr,
     )
+
     if compiled:
         torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
@@ -54,7 +68,7 @@ def main(
         auto_insert_metric_name=True,
     )
 
-    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers, mix=mix)
+    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers, mix=mix, umap_subset=umap_subset, pca_subset=pca_subset)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     

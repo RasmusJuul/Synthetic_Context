@@ -5,7 +5,7 @@ from src import _PATH_DATA
 import argparse
 
 
-def create_csv(split,no_noise=False,old=False):
+def create_csv(split,no_noise=False,old=False,gan=False):
     if no_noise:
         folder_name = "synthetic_mixed_256_no_noise"
     elif old:
@@ -14,19 +14,19 @@ def create_csv(split,no_noise=False,old=False):
         folder_name = "synthetic_mixed_256"
         
     img_path = glob(f"{folder_name}/{split}/**/mix*.tif",root_dir=_PATH_DATA)
-    # gan_img_path = glob(f"synthetic_gan/{split}/**/mix*.tif",root_dir=_PATH_DATA)
     label_path = glob(f"{folder_name}/{split}/**/label*.tif",root_dir=_PATH_DATA)
     centroid_path = glob(f"{folder_name}/{split}/**/*.csv",root_dir=_PATH_DATA)
     label_path.sort()
     img_path.sort()
     centroid_path.sort()
-    # gan_img_path.sort()
+    
     df = pd.DataFrame()
     
     df["img_path"] = img_path
     df["label_path"] = ""
     df["centroid_path"] = ""
-    # df["gan_img_path"] = ""
+    
+    
     
     df["index"] = df.img_path.apply(lambda x: x.split("/")[-1][4:-4])
     df.set_index("index",inplace=True)
@@ -37,8 +37,12 @@ def create_csv(split,no_noise=False,old=False):
     for path in centroid_path:
         df.loc[path.split("/")[-1][10:-4],"centroid_path"] = path
         
-    # for path in gan_img_path:
-    #     df.loc[path.split("/")[-1][4:-4],"gan_img_path"] = path
+    if gan:
+        gan_img_path = glob(f"synthetic_gan/{split}/**/mix*.tif",root_dir=_PATH_DATA)
+        gan_img_path.sort()
+        df["gan_img_path"] = ""    
+        for path in gan_img_path:
+            df.loc[path.split("/")[-1][4:-4],"gan_img_path"] = path
 
     if no_noise:
         df.to_csv(_PATH_DATA+f"/{split}_no_noise.csv", index=False, encoding="utf-8")
@@ -76,9 +80,16 @@ if __name__ == "__main__":
     )
     parser.add_argument("--no_noise", action="store_true", help="")
     parser.add_argument("--old", action="store_true", help="")
+    parser.add_argument("--gan", action="store_true", help="")
+    parser.add_argument("--train", action="store_true", help="")
+    parser.add_argument("--test", action="store_true", help="")
+    parser.add_argument("--validation", action="store_true", help="")
     args = parser.parse_args()
     
-    create_csv("test",args.no_noise,args.old)
-    create_csv("train",args.no_noise,args.old)
-    create_csv("validation",args.no_noise,args.old)
+    if args.test:
+        create_csv("test",args.no_noise,args.old,args.gan)
+    if args.train:
+        create_csv("train",args.no_noise,args.old,args.gan)
+    if args.validation:
+        create_csv("validation",args.no_noise,args.old,args.gan)
     # create_mixed_and_label_paths_csv()
