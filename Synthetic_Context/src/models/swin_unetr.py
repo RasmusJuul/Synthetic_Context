@@ -5,43 +5,47 @@ import torchmetrics as tm
 from collections.abc import Sequence
 
 from monai.networks.layers.factories import Act, Norm
-from monai.networks.nets.unet import UNet
+from monai.networks.nets.swin_unetr import SwinUNETR
 
 from src.utils.loss_functions import softmax_focal_loss
 
 
-class UNet_pl(UNet, LightningModule):
+class SwinUNETR_pl(SwinUNETR, LightningModule):
     def __init__(
         self,
-        spatial_dims: int,
+        img_size: Sequence[int] | int,
         in_channels: int,
         out_channels: int,
-        channels: Sequence[int],
-        strides: Sequence[int],
-        kernel_size: Sequence[int] | int = 3,
-        up_kernel_size: Sequence[int] | int = 3,
-        num_res_units: int = 0,
-        act: tuple | str = Act.PRELU,
-        norm: tuple | str = Norm.INSTANCE,
-        dropout: float = 0.0,
-        bias: bool = True,
-        adn_ordering: str = "NDA",
-        lr: float = 1e-3,
+        depths: Sequence[int] = (2, 2, 2, 2),
+        num_heads: Sequence[int] = (3, 6, 12, 24),
+        feature_size: int = 24,
+        norm_name: tuple | str = "instance",
+        drop_rate: float = 0.1,
+        attn_drop_rate: float = 0.1,
+        dropout_path_rate: float = 0.1,
+        normalize: bool = True,
+        use_checkpoint: bool = False,
+        spatial_dims: int = 3,
+        downsample="merging",
+        use_v2=True,
+        lr: float = 8e-4,
     ) -> None:
-        super(UNet_pl, self).__init__(
-            spatial_dims,
+        super(SwinUNETR_pl, self).__init__(
+            img_size,
             in_channels,
             out_channels,
-            channels,
-            strides,
-            kernel_size,
-            up_kernel_size,
-            num_res_units,
-            act,
-            norm,
-            dropout,
-            bias,
-            adn_ordering,
+            depths,
+            num_heads,
+            feature_size,
+            norm_name,
+            drop_rate,
+            attn_drop_rate,
+            dropout_path_rate,
+            normalize,
+            use_checkpoint,
+            spatial_dims,
+            downsample,
+            use_v2,
         )
         self.Loss = softmax_focal_loss
         self.lr = lr

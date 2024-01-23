@@ -15,6 +15,8 @@ import wandb
 from src import _PATH_DATA, _PATH_MODELS, _PROJECT_ROOT
 from src.data.dataloaders import BugNISTDataModule
 from src.models.unet import UNet_pl
+from src.models.unet_no_skip import UNet_pl as UNetNoSkipConnection
+from src.models.swin_unetr import SwinUNETR_pl as SwinUNETR
 
 
 def main(
@@ -26,8 +28,12 @@ def main(
     compiled: bool = False,
     mix: bool = False,
     seed: int = 1234,
+    size: int = None,
+    version: str = "v3",
+    model: str = "small",
     umap_subset: bool = False,
     pca_subset: bool = False,
+    feature_distance_subset: bool = False,
 ):
     seed_everything(seed, workers=True)
 
@@ -35,70 +41,106 @@ def main(
 
     torch.set_float32_matmul_precision("medium")
 
-    #UNet normal
-    # model = UNet_pl(
+    if model == "small":
+        model = UNet_pl(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=13,
+            channels=(4, 8, 16, 32, 64),
+            strides=(2, 2, 2, 2),
+            lr=lr,
+        )
+        filename="UNet_small-{epoch}"
+        precision = "16-mixed"
+    elif model == "large":
+        model = UNet_pl(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=13,
+            channels=(16, 32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2, 2),
+            num_res_units = 3,
+            lr=lr,
+        )
+        filename="UNet_large-{epoch}"
+        precision = "16-mixed"
+    elif model == "swin":
+        model = SwinUNETR(img_size=(256,128,128), in_channels=1, out_channels=13, feature_size=24)
+        filename="SwinUNETR-{epoch}"
+        precision = "32-true"
+        
+    # model = UNetNoSkipConnection(
     #     spatial_dims=3,
     #     in_channels=1,
     #     out_channels=13,
-    #     channels=(4, 8, 16, 32, 64),
-    #     strides=(2, 2, 2, 2),
+    #     channels=(16, 32, 64, 128, 256, 512),
+    #     strides=(2, 2, 2, 2, 2),
+    #     num_res_units = 3,
     #     lr=lr,
     # )
-    #UNet large
-    model = UNet_pl(
-        spatial_dims=3,
-        in_channels=1,
-        out_channels=13,
-        channels=(16, 32, 64, 128, 256, 512),
-        strides=(2, 2, 2, 2, 2),
-        num_res_units = 3,
-        lr=lr,
-    )
+    
 
     if compiled:
         torch._dynamo.config.suppress_errors = True
         model = torch.compile(model)
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath=_PATH_MODELS + "/" + name + "-" + time,
-        filename="UNet-{epoch}",
+        dirpath=f"{_PATH_MODELS}/{name}-{time}",
+        filename=filename,
         monitor="val/focal_loss",
         mode="min",
         save_top_k=1,
         auto_insert_metric_name=True,
     )
 
-    bugnist = BugNISTDataModule(batch_size=batch_size, num_workers=num_workers, mix=mix, umap_subset=umap_subset, pca_subset=pca_subset)
+    bugnist = BugNISTDataModule(batch_size=batch_size,
+                                num_workers=num_workers,
+                                mix=mix,
+                                version=version,
+                                size=size,
+                                umap_subset=umap_subset,
+                                pca_subset=pca_subset,
+                                feature_distance_subset=feature_distance_subset)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
 
+    if size == None:
+        patience = 7
+    elif size < 10000:
+        patience = 18
+    elif size > 10000:
+        patience = 12
+
     early_stopping_callback = EarlyStopping(
         monitor="val/focal_loss",
-        patience=25,
+        patience=patience,
         verbose=True,
         mode="min",
         strict=False,
         check_on_train_epoch_end=False,
+        check_finite = True,
     )
 
+    
     trainer = Trainer(
         max_epochs=max_epochs,
         devices=-1,
         accelerator="gpu",
         deterministic=False,
         default_root_dir=_PROJECT_ROOT,
-        precision="16-mixed",
+        precision=precision,
         callbacks=[checkpoint_callback, early_stopping_callback,lr_monitor],
         log_every_n_steps=25,
         logger=wandb_logger,
+        strategy='ddp',
     )
 
     trainer.fit(
         model,
         datamodule=bugnist,
-        # ckpt_path=_PATH_MODELS + "/UNet-2023-11-01-1303/UNet-epoch=397.ckpt",
+        # ckpt_path=_PATH_MODELS + "/SwinUNETR-2024-01-13-1159/SwinUNETR-epoch=4.ckpt",
     )
 
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)

@@ -7,11 +7,11 @@ import argparse
 
 def create_csv(split,no_noise=False,old=False,gan=False):
     if no_noise:
-        folder_name = "synthetic_mixed_256_no_noise"
+        folder_name = "synthetic_mixed_256_v2"
     elif old:
-        folder_name = "synthetic_mixed_256_old"
+        folder_name = "synthetic_mixed_256_v1"
     else:
-        folder_name = "synthetic_mixed_256"
+        folder_name = "synthetic_mixed_256_v3"
         
     img_path = glob(f"{folder_name}/{split}/**/mix*.tif",root_dir=_PATH_DATA)
     label_path = glob(f"{folder_name}/{split}/**/label*.tif",root_dir=_PATH_DATA)
@@ -45,11 +45,11 @@ def create_csv(split,no_noise=False,old=False,gan=False):
             df.loc[path.split("/")[-1][4:-4],"gan_img_path"] = path
 
     if no_noise:
-        df.to_csv(_PATH_DATA+f"/{split}_no_noise.csv", index=False, encoding="utf-8")
+        df.to_csv(_PATH_DATA+f"/{split}_v2.csv", index=False, encoding="utf-8")
     elif old:
-        df.to_csv(_PATH_DATA+f"/{split}_old.csv", index=False, encoding="utf-8")
+        df.to_csv(_PATH_DATA+f"/{split}_v1.csv", index=False, encoding="utf-8")
     else:
-        df.to_csv(_PATH_DATA+f"/{split}.csv", index=False, encoding="utf-8")
+        df.to_csv(_PATH_DATA+f"/{split}_v3.csv", index=False, encoding="utf-8")
 
 def create_mixed_and_label_paths_csv():
     img_path = glob("cyclegan_256/*B/**/*.tif",root_dir=_PATH_DATA)

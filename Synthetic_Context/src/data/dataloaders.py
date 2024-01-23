@@ -237,23 +237,27 @@ class SplitType(Enum):
 
 # Dataloader for images of synthetic mixes or synthetic mixes generated with a cyclegan
 class BugNIST_mix(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42, gan=False, transform=False,no_noise=False,old=False,umap_subset=False,pca_subset=False):
+    def __init__(self, type: SplitType, seed=42, transform=False, size=None, gan=False, version="v3",subset=None):
         """
         A PyTorch Dataset handling synthetic mixed images or images generated with a CycleGAN.
 
         Args:
         - type (SplitType): Indicates the split type of the dataset, such as train, validation, or test.
         - seed (int): Random seed for reproducibility. Defaults to 42.
-        - gan (bool): If True, represents synthetic mixes run through a Generative Adversarial Network (GAN). Defaults to False.
         - transform (bool): If True, applies transformations to the images. Defaults to False.
-        - no_noise (bool): If True, uses synthetic mixes without added noise. Defaults to False.
-        - old (bool): If True, uses an older version of synthetic mixes, where insects are further from each other and with no added noise. Defaults to False.
-        - umap_subset (bool): If True, uses a subset of the training data that is closest to real images in a Uniform Manifold Approximation and Projection (UMAP). Defaults to False.
-        - pca_subset (bool): If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca. Defaults to False.
+        - version (str): Which version of the dataset to use (v1, v2, or v3). Defaults to v3.
+        - subset (str): If None, use full dataset, else use the given subset (umap/pca/feature_distance)
+        - size (int): If given, determines how many data point to use. Defaults to None (the full dataset).
+        - gan (bool): If True, represents synthetic mixes run through a Generative Adversarial Network (GAN), only compatible with v3. Defaults to False.
         """
         dataset_path = _PATH_DATA
 
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, no_noise, old, umap_subset, pca_subset)
+        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, version, subset)
+        
+        if size != None:
+            self.image_paths = self.image_paths[:size]
+            self.label_paths = self.label_paths[:size]
+            
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
@@ -281,7 +285,7 @@ class BugNIST_mix(torch.utils.data.Dataset):
 
     @staticmethod
     def dataset_images(
-        dataset_path: str, type: SplitType, gan: bool, no_noise: bool, old: bool, umap_subset: bool, pca_subset: bool
+        dataset_path: str, type: SplitType, gan: bool, version: str, subset: str,
     ) -> tuple[list[str], list[str]]:
         assert len(SplitType) == 3
         file_name = (
@@ -291,14 +295,11 @@ class BugNIST_mix(torch.utils.data.Dataset):
             if type == SplitType.Test
             else "validation"
         )
-        if no_noise:
-            file_name += "_no_noise"
-        elif old:
-            file_name += "_old"
-        elif umap_subset:
-            file_name += "_umap_subset"
-        elif pca_subset:
-            file_name += "_pca_subset"
+        if subset != None:
+            file_name += f"_{subset}_subset"
+        else:
+            file_name += f"_{version}"
+            
         files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
         if gan:
             return files.gan_img_path.to_list(), files.label_path.to_list()
@@ -482,11 +483,12 @@ class BugNISTDataModule(pl.LightningDataModule):
         num_workers: int = 0,
         seed: int = 42,
         mix: bool = False,
-        no_noise: bool = False,
-        old: bool = False,
+        version: str = "v3",
+        size: int = None,
         gan: bool = False,
         umap_subset: bool = False,
         pca_subset: bool = False,
+        feature_distance_subset: bool = False,
     ):
         """
         Initializes the BugNISTDataModule.
@@ -497,11 +499,12 @@ class BugNISTDataModule(pl.LightningDataModule):
         - num_workers (int): The number of workers for data loading.
         - seed (int): The random seed for reproducibility.
         - mix (bool): If True, uses synthetic mixes; otherwise, uses images with one insect per image.
-        - no_noise (bool): If True, uses synthetic mixes without added noise.
-        - old (bool): If True, uses an older version of synthetic mixes with insects further from each other and without added noise.
+        - version (str): Which version of the dataset to use (v1, v2, or v3). Defaults to v3.
+        - size (int): If given, determines how many data point to use. Defaults to None (the full dataset).
         - gan (bool): If True, uses synthetic mixes run through a GAN (Generative Adversarial Network).
         - umap_subset (bool): If True, uses a subset of the training data closest to real images in a UMAP (Uniform Manifold Approximation and Projection).
         - pca_subset (bool): If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca.
+        - feature_distance_subset (bool): If True, uses the 15000 training data points which are the closest to the real data, with the distance calculated from the raw features of a trained network
         """
         super().__init__()
         self.data_dir = data_dir
@@ -509,11 +512,16 @@ class BugNISTDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.seed = seed
         self.mix = mix
-        self.no_noise = no_noise
-        self.old = old
+        self.version = version
+        self.size = size
         self.gan = gan
-        self.umap_subset = umap_subset
-        self.pca_subset = pca_subset
+        self.subset = None
+        if umap_subset:
+            self.subset = "umap"
+        elif pca_subset:
+            self.subset = "pca"
+        elif feature_distance_subset:
+            self.subset = "feature_distance"
 
     def setup(self, stage=None):
         """
@@ -524,16 +532,23 @@ class BugNISTDataModule(pl.LightningDataModule):
         """
         if stage == "test" or stage is None:
             if self.mix:
-                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan)
+                self.bugnist_test = BugNIST_mix(type=SplitType.Test, seed=self.seed, version=self.version, gan=self.gan)
             else:
                 self.bugnist_test = BugNIST(type=SplitType.Test, seed=self.seed)
 
         if stage == "fit" or stage is None:
             if self.mix:
                 self.bugnist_train = BugNIST_mix(
-                    type=SplitType.Train, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan, umap_subset=self.umap_subset, pca_subset=self.pca_subset, transform=True)
+                    type=SplitType.Train,
+                    seed=self.seed,
+                    version=self.version,
+                    size=self.size,
+                    gan=self.gan,
+                    subset=self.subset,
+                    transform=True)
+                
                 self.bugnist_val = BugNIST_mix(
-                    type=SplitType.Validation, seed=self.seed, no_noise=self.no_noise, old=self.old, gan=self.gan,
+                    type=SplitType.Validation, seed=self.seed, version=self.version, gan=self.gan,
                 )
             else:
                 self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)

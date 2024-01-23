@@ -20,8 +20,12 @@ def main(
     mix: bool,
     cyclegan: bool,
     seed: int,
+    size: int,
+    version: str,
+    model: str,
     umap_subset: bool,
     pca_subset: bool,
+    feature_distance_subset: bool,
 ):
     torch.cuda.empty_cache()
     if cyclegan:
@@ -47,8 +51,12 @@ def main(
             compiled=compiled,
             mix=mix,
             seed=seed,
+            version=version,
+            size=size,
+            model=model,
             umap_subset=umap_subset,
             pca_subset=pca_subset,
+            feature_distance_subset=feature_distance_subset,
         )
 
 
@@ -93,11 +101,23 @@ if __name__ == "__main__":
         action="store_true",
         help="If True, uses a subset of the training data which are within the average distance between the real images when transformed using pca.")
     parser.add_argument(
+        "--feature_distance_subset",
+        action="store_true",
+        help="If True, uses the 15000 training data points which are the closest to the real data, with the distance calculated from the raw features of a trained network")
+    parser.add_argument(
         "--seed",
         type=int,
         help="seed for RNG",
         default=1234,
     )
+    parser.add_argument(
+        "--size",
+        type=int,
+        help="If given, determines how many data point to use. Defaults to None (the full dataset).",
+        default=None,
+    )
+    parser.add_argument("--model", type=str, default="small", help="Which network architecture to use, either small, large, or swin. Defaults to small")
+    parser.add_argument("--version", type=str, default="v3", help="Which version of the dataset to use (v1, v2, or v3). Defaults to v3.")
     args = parser.parse_args()
 
     main(
@@ -113,4 +133,8 @@ if __name__ == "__main__":
         seed=args.seed,
         umap_subset=args.umap_subset,
         pca_subset=args.pca_subset,
+        feature_distance_subset=args.feature_distance_subset,
+        model=args.model,
+        size=args.size,
+        version=args.version,
     )

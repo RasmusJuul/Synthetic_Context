@@ -13,7 +13,7 @@ import scipy.ndimage as ndi
 from scipy.special import softmax
 import argparse
 
-rng = np.random.RandomState(seed=1337)
+rng = np.random.RandomState(seed=199742)
 labels=["BF","CF","PP","MA","BL","ML","SL","WO","BC","GH","AC","GP"]
 
 def get_bin(df, composition, ax0_bottom, ax0_top, ax1_bottom, ax1_top, ax2_bottom, ax2_top):
@@ -308,34 +308,24 @@ if __name__ == "__main__":
     with_noise = not args.no_noise
     
     if with_noise:
-        folder_name = "synthetic_mixed_256"
+        folder_name = "synthetic_mixed_256_v3"
     else:
-        folder_name = "synthetic_mixed_256_no_noise"
+        folder_name = "synthetic_mixed_256_v2"
 
-    # for i in range(int(5000*3 / 200)):
-    #     os.makedirs(
-    #         _PATH_DATA + f"/{folder_name}/train/{str(i).zfill(3)}", exist_ok=True
-    #     )
-    # for i in range(int(500*3 / 200)):
-    #     os.makedirs(
-    #         _PATH_DATA + f"/{folder_name}/test/{str(i).zfill(3)}", exist_ok=True
-    #     )
-    # for i in range(int(500*3 / 200)):
-    #     os.makedirs(
-    #         _PATH_DATA + f"/{folder_name}/validation/{str(i).zfill(3)}",
-    #         exist_ok=True,
-    #     )
+    os.makedirs(f"{_PATH_DATA}/{folder_name}/train", exist_ok=True)
+    os.makedirs(f"{_PATH_DATA}/{folder_name}/test", exist_ok=True)
+    os.makedirs(f"{_PATH_DATA}/{folder_name}/validation", exist_ok=True)
 
+    # L = []
+    # for i in tqdm(range(50000), unit="image", desc="creating mixed images"):
+    #     L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L,with_noise)
+    #     save_files("train",new_mix,new_mix_label,df_new,i,folder_name)
     L = []
-    for i in tqdm(range(15849,20000), unit="image", desc="creating mixed images"):
-        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"train",L,with_noise)
-        save_files("train",new_mix,new_mix_label,df_new,i,folder_name)
-    # L = []
-    # for i in tqdm(range(500), unit="image", desc="creating mixed images"):
-    #     L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L,with_noise)
-    #     save_files("test",new_mix,new_mix_label,df_new,i,folder_name)
-    # L = []
-    # for i in tqdm(range(500), unit="image", desc="creating mixed images"):
-    #     L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L,with_noise)
-    #     save_files("validation",new_mix,new_mix_label,df_new,i,folder_name)
+    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"test",L,with_noise)
+        save_files("test",new_mix,new_mix_label,df_new,i,folder_name)
+    L = []
+    for i in tqdm(range(500), unit="image", desc="creating mixed images"):
+        L, new_mix, new_mix_label, df_new = generate_mix(df,noise,i,"validation",L,with_noise)
+        save_files("validation",new_mix,new_mix_label,df_new,i,folder_name)
 
