@@ -26,6 +26,8 @@ def main(
     umap_subset: bool,
     pca_subset: bool,
     feature_distance_subset: bool,
+    model_path: str,
+    gan_subset: bool,
 ):
     torch.cuda.empty_cache()
     if cyclegan:
@@ -57,6 +59,8 @@ def main(
             umap_subset=umap_subset,
             pca_subset=pca_subset,
             feature_distance_subset=feature_distance_subset,
+            model_path=model_path,
+            gan_subset=gan_subset,
         )
 
 
@@ -65,6 +69,7 @@ if __name__ == "__main__":
         description="Trains a UNet on segmentation of BugNIST"
     )
     parser.add_argument("--name", "-n", type=str, default="test", help="Name for wandb")
+    parser.add_argument("--model_path", type=str, default=None, help="Name for wandb")
     parser.add_argument(
         "--max-epochs", "-me", type=int, default=10, help="Number of max epochs"
     )
@@ -105,6 +110,10 @@ if __name__ == "__main__":
         action="store_true",
         help="If True, uses the 15000 training data points which are the closest to the real data, with the distance calculated from the raw features of a trained network")
     parser.add_argument(
+        "--gan_subset",
+        action="store_true",
+        help="Use data transformed by cyclegan")
+    parser.add_argument(
         "--seed",
         type=int,
         help="seed for RNG",
@@ -137,4 +146,6 @@ if __name__ == "__main__":
         model=args.model,
         size=args.size,
         version=args.version,
+        model_path=args.model_path,
+        gan_subset=args.gan_subset,
     )

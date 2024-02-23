@@ -6,6 +6,7 @@ from glob import glob
 from src import _PATH_DATA, _PATH_MODELS
 import os
 from tqdm import tqdm
+import pandas as pd
 
 def toImage(x):
     x = x.squeeze()
@@ -29,16 +30,19 @@ def run_model(model,file):
 
 if __name__ == "__main__":
     model = CycleGan()
-    model_path = "/".join([_PATH_MODELS,"CycleGAN_TPWN-2023-11-29-2038/CycleGAN-epoch=69.ckpt"])
+    model_path = "/".join([_PATH_MODELS,"CycleGAN-2024-02-09-1811/CycleGAN-epoch=2.ckpt"])
     model.load_state_dict(torch.load(model_path, map_location=None)['state_dict'], strict=True)
     torch._dynamo.config.suppress_errors = True
     model = torch.compile(model)
     model = model.cuda()
     model.eval();
 
-    train_files = glob("synthetic_mixed_256/train/**/mix*.tif",root_dir=_PATH_DATA)
-    test_files = glob("synthetic_mixed_256/test/**/mix*.tif",root_dir=_PATH_DATA)
-    val_files = glob("synthetic_mixed_256/validation/**/mix*.tif",root_dir=_PATH_DATA)
+    train_files = pd.read_csv(f"{_PATH_DATA}/train_v3.csv")["img_path"]
+    test_files = pd.read_csv(f"{_PATH_DATA}/test_v3.csv")["img_path"]
+    val_files = pd.read_csv(f"{_PATH_DATA}/validation_v3.csv")["img_path"]
+    # train_files = glob("synthetic_mixed_256/train/**/mix*.tif",root_dir=_PATH_DATA)
+    # test_files = glob("synthetic_mixed_256/test/**/mix*.tif",root_dir=_PATH_DATA)
+    # val_files = glob("synthetic_mixed_256/validation/**/mix*.tif",root_dir=_PATH_DATA)
     
     for file in tqdm(train_files, unit="image", desc="generating images"):
         run_model(model, file)

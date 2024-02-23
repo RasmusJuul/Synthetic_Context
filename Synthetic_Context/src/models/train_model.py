@@ -34,6 +34,8 @@ def main(
     umap_subset: bool = False,
     pca_subset: bool = False,
     feature_distance_subset: bool = False,
+    gan_subset: bool = False,
+    model_path: str = None,
 ):
     seed_everything(seed, workers=True)
 
@@ -100,7 +102,8 @@ def main(
                                 size=size,
                                 umap_subset=umap_subset,
                                 pca_subset=pca_subset,
-                                feature_distance_subset=feature_distance_subset)
+                                feature_distance_subset=feature_distance_subset,
+                                gan=gan_subset,)
 
     wandb_logger = WandbLogger(project="Thesis", name=name)
     
@@ -137,10 +140,16 @@ def main(
         strategy='ddp',
     )
 
-    trainer.fit(
-        model,
-        datamodule=bugnist,
-        # ckpt_path=_PATH_MODELS + "/SwinUNETR-2024-01-13-1159/SwinUNETR-epoch=4.ckpt",
-    )
+    if model_path != None:
+        trainer.fit(
+            model,
+            datamodule=bugnist,
+            ckpt_path=f"{_PATH_MODELS}/{model_path}",
+        )
+    else:
+        trainer.fit(
+            model,
+            datamodule=bugnist,
+        )
 
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)

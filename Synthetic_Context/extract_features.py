@@ -42,25 +42,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Extract the features of the deepest layer of the UNet trained on the 'tightly packed with noise' synthetic data. Pick which dataset you want the features of"
     )
-    parser.add_argument(
-        "--nn",
-        action="store_true",
-        help="tight packing no noise",
-    )
-    parser.add_argument(
-        "--old",
-        action="store_true",
-        help="loose packing",
-    )
+    parser.add_argument("--version",
+                        type=str,
+                        default="v3",
+                        help="Which version of the dataset to use (v1, v2, or v3). Defaults to v3.")
     parser.add_argument(
         "--real",
         action="store_true",
         help="real mixes",
-    )
-    parser.add_argument(
-        "--new",
-        action="store_true",
-        help="tight packing with noise",
     )
     parser.add_argument(
         "--gan",
@@ -80,85 +69,90 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if not args.nn ^ args.old ^ args.real ^ args.new ^ args.gan:
-        print("only one dataset can be picked")
+
+    
+    torch.set_float32_matmul_precision("medium")
+
+    # model = UNet_pl(
+    #     spatial_dims=3,
+    #     in_channels=1,
+    #     out_channels=13,
+    #     channels=(4, 8, 16, 32, 64),
+    #     strides=(2, 2, 2, 2),
+    #     lr=1,
+    # )
+    
+    # model = UNet_pl(
+    # spatial_dims=3,
+    # in_channels=1,
+    # out_channels=13,
+    # channels=(16, 32, 64, 128, 256, 512),
+    # strides=(2, 2, 2, 2, 2),
+    # num_res_units = 3,
+    # )
+
+    model = UNetNoSkipConnection(
+    spatial_dims=3,
+    in_channels=1,
+    out_channels=13,
+    channels=(16, 32, 64, 128, 256, 512),
+    strides=(2, 2, 2, 2, 2),
+    num_res_units = 3,
+)
+    
+    # model_path = "../models/UNet_no_noise-2023-11-13-1713/UNet-epoch=343.ckpt"
+    # model_path = "../models/UNet_old-2023-09-20-2208/UNet-epoch=229.ckpt"
+    # model_path = f"{_PATH_MODELS}/UNet-2023-11-03-0950/UNet-epoch=498.ckpt"
+    # model_path = f"{_PATH_MODELS}/UNet_large-2023-12-06-1549/UNet-epoch=79.ckpt"
+    model_path = f"{_PATH_MODELS}/UNet_no_skip-2024-01-08-1327/UNet-epoch=70.ckpt"
+    
+    model.load_state_dict(torch.load(model_path, map_location="cpu")['state_dict'], strict=True)
+    
+    torch._dynamo.config.suppress_errors = True
+    
+    # feature_extractor = create_feature_extractor(model,['model.1.submodule.1.submodule.1.submodule.1.submodule.adn.A']) # small model
+    # feature_extractor = create_feature_extractor(model,['model.1.submodule.1.submodule.1.submodule.1.submodule.1.cat']) # large model
+    feature_extractor = create_feature_extractor(model,['model.1.1.1.1.1.add']) # No skip connection model
+    
+    feature_extractor = torch.compile(feature_extractor)
+    feature_extractor.eval();
+    feature_extractor = feature_extractor.to("cuda");
+
+    if args.real:
+        dataloader = DataLoader(MetricDataset(),
+                         batch_size=args.batch_size,
+                         num_workers=16)
     else:
-    
-        torch.set_float32_matmul_precision("medium")
-    
-        # model = UNet_pl(
-        #     spatial_dims=3,
-        #     in_channels=1,
-        #     out_channels=13,
-        #     channels=(4, 8, 16, 32, 64),
-        #     strides=(2, 2, 2, 2),
-        #     lr=1,
-        # )
-        
-        # model = UNet_pl(
-        # spatial_dims=3,
-        # in_channels=1,
-        # out_channels=13,
-        # channels=(16, 32, 64, 128, 256, 512),
-        # strides=(2, 2, 2, 2, 2),
-        # num_res_units = 3,
-        # )
-
-        model = UNetNoSkipConnection(
-        spatial_dims=3,
-        in_channels=1,
-        out_channels=13,
-        channels=(16, 32, 64, 128, 256, 512),
-        strides=(2, 2, 2, 2, 2),
-        num_res_units = 3,
-    )
-        
-        # model_path = "../models/UNet_no_noise-2023-11-13-1713/UNet-epoch=343.ckpt"
-        # model_path = "../models/UNet_old-2023-09-20-2208/UNet-epoch=229.ckpt"
-        # model_path = f"{_PATH_MODELS}/UNet-2023-11-03-0950/UNet-epoch=498.ckpt"
-        # model_path = f"{_PATH_MODELS}/UNet_large-2023-12-06-1549/UNet-epoch=79.ckpt"
-        model_path = f"{_PATH_MODELS}/UNet_no_skip-2024-01-08-1327/UNet-epoch=70.ckpt"
-        
-        model.load_state_dict(torch.load(model_path, map_location="cpu")['state_dict'], strict=True)
-        
-        torch._dynamo.config.suppress_errors = True
-        
-        # feature_extractor = create_feature_extractor(model,['model.1.submodule.1.submodule.1.submodule.1.submodule.adn.A']) # small model
-        # feature_extractor = create_feature_extractor(model,['model.1.submodule.1.submodule.1.submodule.1.submodule.1.cat']) # large model
-        feature_extractor = create_feature_extractor(model,['model.1.1.1.1.1.add']) # No skip connection model
-        
-        feature_extractor = torch.compile(feature_extractor)
-        feature_extractor.eval();
-        feature_extractor = feature_extractor.to("cuda");
-
-        if args.nn or args.old or args.gan:
-            bugnist = BugNISTDataModule(batch_size=args.batch_size, num_workers=16, mix=True,no_noise=args.nn, old=args.old, gan=args.gan)
-            bugnist.setup()
+        bugnist = BugNISTDataModule(batch_size=args.batch_size, num_workers=16, mix=True, gan=args.gan, version=args.version)
+        bugnist.setup()
+        if args.train:
+            dataloader = bugnist.train_dataloader(shuffle=False)
+        else:
             dataloader = bugnist.test_dataloader()
-        elif args.new:
-            bugnist = BugNISTDataModule(batch_size=args.batch_size, num_workers=16, mix=True)
-            bugnist.setup()
-            if args.train:
-                dataloader = bugnist.train_dataloader()
-            else:
-                dataloader = bugnist.test_dataloader()
-        elif args.real:
-            dataloader = DataLoader(MetricDataset(),
-                             batch_size=args.batch_size,
-                             num_workers=16)
+    
 
-        if args.old:
-            name = "loose_packing"
-        elif args.nn:
-            name = "tight_packing_nn"
-        elif args.new:
-            if args.train:
-                name = "tight_packing_wn_train"
-            else:
-                name = "tight_packing_wn_test"
-        elif args.real:
-            name = "real"
-        elif args.gan:
-            name = "gan"
+    if args.version == "v1":
+        name = "light_packing"
+        if args.train:
+            name = name+"_train"
+        else:
+            name = name+"_test"
+    elif args.version == "v2":
+        name = "dense_packing_nn"
+        if args.train:
+            name = name+"_train"
+        else:
+            name = name+"_test"
+    elif args.version == "v3":
+        name = "dense_packing_wn"
+        if args.train:
+            name = name+"_train"
+        else:
+            name = name+"_test"
             
-        extract_features(feature_extractor, dataloader,name)
+    elif args.real:
+        name = "real"
+    elif args.gan:
+        name = "gan"
+        
+    extract_features(feature_extractor, dataloader,name)

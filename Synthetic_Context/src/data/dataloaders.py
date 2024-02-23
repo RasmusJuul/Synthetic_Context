@@ -44,7 +44,7 @@ class UnpairedDataset(Dataset):
     def __init__(self, root: str = "cyclegan_256", mode: str = "train"):
         """
         root must have trainA trainB testA testB as its subfolders
-        mode must be either 'train', 'test' or 'validation'
+        mode must be either 'train' or 'validation'
         """
         assert (
             mode in "train test validation".split()
@@ -138,13 +138,16 @@ class CycleGANDataModule(pl.LightningDataModule):
         )
 
 class MetricDataset(Dataset):
-    def __init__(self):
+    def __init__(self,fixed=False):
         """
         Dataset of mixed_crop and their corresponding metric distance labels
         """
         super().__init__()
 
-        files = pd.read_csv(f"{_PATH_DATA}/mixed_and_label_paths.csv", header=0)
+        if fixed:
+            files = pd.read_csv(f"{_PATH_DATA}/fixed_labels.csv", header=0)
+        else:
+            files = pd.read_csv(f"{_PATH_DATA}/mixed_and_label_paths.csv", header=0)
 
         self.image_paths = files.img_path.to_list()
         self.label_paths = files.label_path.to_list()
@@ -254,7 +257,11 @@ class BugNIST_mix(torch.utils.data.Dataset):
 
         self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, version, subset)
         
+        
+        
         if size != None:
+            if size > len(self.image_paths):
+                size = len(self.image_paths)
             self.image_paths = self.image_paths[:size]
             self.label_paths = self.label_paths[:size]
             
@@ -270,6 +277,7 @@ class BugNIST_mix(torch.utils.data.Dataset):
                                                   transforms.RandFlip(prob=0.5,spatial_axis=1),
                                                   transforms.RandFlip(prob=0.5,spatial_axis=0),
                                                   transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                  transforms.RandStdShiftIntensity(factors=1, prob=0.1)
                                                   ])
         
         self.transforms_label = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
@@ -342,83 +350,32 @@ class BugNIST_mix(torch.utils.data.Dataset):
     def get_name_of_image(self, idx: int) -> str:
         return self.image_paths[idx].split("/")[-1].split(".")[0]
 
-# Dataloader for images of single insects and synthetic mixes
-class BugNIST_all(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42):
-        dataset_path = _PATH_DATA
-
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type)
-        self.image_paths = [
-            os.path.join(dataset_path, path) for path in self.image_paths
-        ]
-        self.label_paths = [
-            os.path.join(dataset_path, path) for path in self.label_paths
-        ]
-        self.rng = np.random.default_rng(seed=seed)
-
-    @staticmethod
-    def dataset_images(
-        dataset_path: str, type: SplitType
-    ) -> tuple[list[str], list[Label]]:
-        assert len(SplitType) == 3
-        file_name = (
-            "train"
-            if type == SplitType.Train
-            else "test"
-            if type == SplitType.Test
-            else "validation"
-        )
-        files = pd.read_csv(f"{dataset_path}/{file_name}.csv", header=0)
-        return files.image_path.to_list(), files.label_path.to_list()
-
-    def __len__(self) -> int:
-        return len(self.image_paths)  # len(self.data)
-
-    def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
-        image_path = self.image_paths[idx]
-        label_path = self.label_paths[idx]
-
-        image = tifffile.imread(image_path)
-        image = np.expand_dims(image, 0)
-
-        X = torch.Tensor(image)
-
-        if "none" in label_path:
-            target = torch.zeros(X.shape)
-            # Mask to get the approximate area of the bug
-            target[X >= 100] = Label.from_abbreviation(image_path.split("/")[-2])
-            target = target.to(dtype=torch.long)
-            y = target.squeeze(dim=0)
-
-        else:
-            label = tifffile.imread(label_path)
-            y = torch.Tensor(label)
-            y = y.to(torch.long)
-
-        return X, y
-
-    @staticmethod
-    def num_classes() -> int:
-        return len(Label)
-
-    @staticmethod
-    def label_to_name(label: int) -> str:
-        return Label(label).abbreviation
-
-    def get_name_of_image(self, idx: int) -> str:
-        return self.image_paths[idx].split("/")[-1].split(".")[0]
-
 # Dataloader for images of single insects
 class BugNIST(torch.utils.data.Dataset):
-    def __init__(self, type: SplitType, seed=42):
-        dataset_path = os.path.join(_PATH_DATA, "bugnist_512")
+    def __init__(self, type: SplitType, seed=42, transform=False):
+        dataset_path = os.path.join(_PATH_DATA, "bugnist_256")
 
         self.image_paths, self.image_labels = self.dataset_images(dataset_path, type)
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
         self.rng = np.random.default_rng(seed=seed)
-        self.rot = RandomRotation(180)
+        self.transforms_img = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                                  transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                                  transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                                  transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                  transforms.RandStdShiftIntensity(factors=1, prob=0.1)
+                                                  ])
+        
+        self.transforms_label = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                                    transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                    ])
+        
+        self.transforms_img = self.transforms_img.set_random_state(seed=seed)
+        self.transforms_label = self.transforms_label.set_random_state(seed=seed)
+        self.transform = transform
 
     @staticmethod
     def dataset_images(
@@ -453,15 +410,19 @@ class BugNIST(torch.utils.data.Dataset):
         image = np.expand_dims(image, 0)
 
         X = torch.Tensor(image)
-        X = self.rot(X)
-
-        target = torch.zeros(X.shape)
+        y = torch.zeros(X.shape)
         # Mask to get the approximate area of the bug
-        target[X >= 100] = label.value
-        target = target.to(dtype=torch.long)
-        target = target.squeeze(dim=0)
+        y[X >= 100] = label.value
+        
+        
+        if self.transform:
+            X = self.transforms_img(X)
+            y = self.transforms_label(y)
 
-        return X, target
+        y = y.to(dtype=torch.long)
+        y = y.squeeze(dim=0)
+        
+        return X, y
 
     @staticmethod
     def num_classes() -> int:
@@ -551,10 +512,10 @@ class BugNISTDataModule(pl.LightningDataModule):
                     type=SplitType.Validation, seed=self.seed, version=self.version, gan=self.gan,
                 )
             else:
-                self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed)
+                self.bugnist_train = BugNIST(type=SplitType.Train, seed=self.seed, transform=True)
                 self.bugnist_val = BugNIST(type=SplitType.Validation, seed=self.seed)
 
-    def train_dataloader(self):
+    def train_dataloader(self,shuffle=True):
         """
         Returns the training data loader.
         """
@@ -563,7 +524,7 @@ class BugNISTDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
-            shuffle=True,
+            shuffle=shuffle,
         )
 
     def val_dataloader(self):
