@@ -47,32 +47,7 @@ def test(model, test_loader):
             
             out = torch.Tensor(preds_sm).softmax(dim=1).argmax(dim=1).to(torch.uint8)
             accuracies.append(sum(out[out != 0] == label[out != 0])/len(label[out != 0]))
-            # comparison = torch.zeros(label.shape)
-        
-            # comparison[out == label] = 2 # Finds correctly labelled pixels
-            # comparison[out != label] = 1 # Finds wrongly labelled pixels
-            # comparison[out == 0] = 0    # Removes background pixels
             
-            
-            # rgba_img = torch.zeros(256,128,128,4)
-            
-            # rgba_img[:,:,:,1][comparison[0] == 2] = 128 # Set colour of correctly labelled pixels to green
-            # rgba_img[:,:,:,3][comparison[0] == 2] = 128 # Set transparency of correctly labelled pixels
-            # rgba_img[:,:,:,0][comparison[0] == 1] = 128 # Set colour of wrongly labelled pixels to red
-            # rgba_img[:,:,:,3][comparison[0] == 1] = 128 # Set transparency of wrongly labelled pixels
-            # rgba_img[:,:,:,3][comparison[0] == 0] = 255 # Set transparency of background (fully transparent)
-            # tifffile.imwrite(f"outputs_large_fixed/{test_loader.dataset.get_name_of_image(k)}_acc={accuracies[k]:.3f}.tif",rgba_img.to(torch.uint8).numpy())
-    
-            # rgba_img = torch.zeros(256,128,128,4)
-            # for i in range(0,13):
-            #     if i == 0:
-            #         rgba_img[:,:,:,3][(out == i).squeeze()] = 255
-            #     else:
-            #         rgba_img[:,:,:,0][(out == i).squeeze()] = color_dict[i][0]
-            #         rgba_img[:,:,:,1][(out == i).squeeze()] = color_dict[i][1]
-            #         rgba_img[:,:,:,2][(out == i).squeeze()] = color_dict[i][2]
-            #         rgba_img[:,:,:,3][(out == i).squeeze()] = 128
-            # tifffile.imwrite(f"outputs_large_fixed/{test_loader.dataset.get_name_of_image(k)}_acc={accuracies[k]:.3f}_coloured.tif",rgba_img.to(torch.uint8).numpy())
     accuracies = torch.Tensor(accuracies)
     print(accuracies.mean())
         
