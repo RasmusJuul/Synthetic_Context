@@ -6,32 +6,45 @@ from tqdm import tqdm
 from glob import glob
 
 
-def random_crop(i, file):
-    img = tifffile.imread(file)
-    h1 = np.random.randint(50, 850)
-    w1 = np.random.randint(50, 600)
-    d1 = np.random.randint(50, 600)
-    h2 = h1 + np.random.randint(10, 60)
-    w2 = w1 + np.random.randint(10, 60)
-    d2 = d1 + np.random.randint(10, 60)
+def create_noise_file(i, files):
+    width = 92
+    noise = np.zeros((128,92,92))
+    for j in range(width):
+        img = tifffile.imread(np.random.choice(files))
+        if np.random.randint(2):
+            slice = img[:,:,np.random.randint(10,50)]*0.5
+        else:
+            slice = img[:,np.random.randint(10,50),:]*0.5
+        offset = np.random.randint(92-64)
+        noise[:,offset:92-(92-64-offset),j] = slice
+    
+    for j in range(width):
+        img = tifffile.imread(np.random.choice(files))
+        if np.random.randint(2):
+            slice = img[:,:,np.random.randint(10,50)]*0.5
+        else:
+            slice = img[:,np.random.randint(10,50),:]*0.5
+        offset = np.random.randint(92-64)
+        noise[:,j,offset:92-(92-64-offset)] = slice
+    
+    noise += np.random.normal(loc=25,scale=10,size=(128,92,92))
+    noise[noise < 0] = 0
 
-    new_img = img[h1:h2, w1:w2, d1:d2]
+    tifffile.imwrite(f"{_PATH_DATA}/noise/noise_{str(i).zfill(3)}.tif", noise.astype('uint8'))
 
-    n = len(glob(_PATH_DATA + f"/noise/{i}_*.tif"))
-
-    tifffile.imwrite(_PATH_DATA + f"/noise/{i}_{str(n).zfill(3)}.tif", new_img)
-
+def update_noise(files):
+    for file in files:
+        img1 = tifffile.imread(file)
+        img2 = tifffile.imread(np.random.choice(files))
+        noise = (img1 + img2)
+        noise[noise > 100] = noise[noise > 100]*0.75
+        tifffile.imwrite(f"{_PATH_DATA}/noise2/{file.split('/')[-1]}",noise.astype('uint8'))
 
 if __name__ == "__main__":
-    blad = glob(_PATH_DATA + "/mixed_crop/Blad/*.tif")
-    papir = glob(_PATH_DATA + "/mixed_crop/papir_fluf/*.tif")
-    savs = glob(_PATH_DATA + "/mixed_crop/savs_fluf/*.tif")
-    noise = blad + papir + savs
-
+    files = glob(f"{_PATH_DATA}/BugNIST_DATA/train/**/*.tif")
     np.random.seed(42)
 
-    for j in range(50):
-        Parallel(n_jobs=-1)(
-            delayed(random_crop)(i, file)
-            for i, file in tqdm(enumerate(noise), unit="image", desc="cropping images")
-        )
+    Parallel(n_jobs=-1)(delayed(create_noise_file)(i, files) for i in tqdm(range(500), unit="image", desc="creating mixed images"))
+
+    files = glob(f"{_PATH_DATA}/noise/*.tif")
+    update_noise(files)

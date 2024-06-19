@@ -9,6 +9,9 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 import os
 
+import scipy.ndimage as ndi
+from scipy.special import softmax
+
 def get_bin(df):
     packer = Packer()
     packer.add_bin(Bin(f'mix', 256, 128, 128, 999))
@@ -28,6 +31,7 @@ def get_bin(df):
 def create_mix(bin,i):
     new_mix = np.zeros((256,128,128),dtype='uint8')
     new_mix_label = np.zeros((256,128,128),dtype='uint8')
+    df_new = pd.DataFrame(columns=["Caption","PosX","PosY","PosZ"])
     for item in bin.items:
         temp_img = tifffile.imread("/".join([_PATH_DATA, "bugnist_256_cut", item.name]))
         if item.rotation_type == 1:
@@ -54,24 +58,34 @@ def create_mix(bin,i):
         new_mix_label[int(start_position[0]):int(start_position[0])+temp_img_shape[0],
                 int(start_position[1]):int(start_position[1])+temp_img_shape[1],
                 int(start_position[2]):int(start_position[2])+temp_img_shape[2]] = temp_img_label
-
-    return new_mix, new_mix_label
+        
+        estimated_centroid = ndi.center_of_mass(temp_img,
+                                                temp_img_label,
+                                                Label.from_abbreviation(
+                                                    item.name.split("/")[0]).value)
+        
+        df_new.loc[len(df_new)] = [item.name.split("/")[0],
+                                   estimated_centroid[2],
+                                   estimated_centroid[1],
+                                   estimated_centroid[0]]
+    return new_mix, new_mix_label, df_new
     
 
-def save_mix(new_mix, new_mix_label, mode, i, count):
+def save_mix(new_mix, new_mix_label, df_new, mode, i, count):
     folder_name = "synthetic_mixed_256_v1"
     num_subfolders = int(count*2/200)
     subfolder = str(i%num_subfolders).zfill(3)
 
     tifffile.imwrite(f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/mix_{str(i).zfill(5)}.tif", new_mix)
     tifffile.imwrite(f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/label_{str(i).zfill(5)}.tif", new_mix_label)
+    df_new.to_csv(f"{_PATH_DATA}/{folder_name}/{mode}/{subfolder}/centroids_{str(i).zfill(5)}.csv")
 
 def generate_mix(df, mode, i, count):
     df = df[df[mode] == True].reset_index(drop=True)
     
     bin = get_bin(df)
-    new_mix, new_mix_label = create_mix(bin, i)
-    save_mix(new_mix, new_mix_label, mode, i, count)
+    new_mix, new_mix_label,df_new = create_mix(bin, i)
+    save_mix(new_mix, new_mix_label, df_new, mode, i, count)
 
 
 if __name__=="__main__":
@@ -82,7 +96,7 @@ if __name__=="__main__":
     count_train = 50000
     count_test = 500
     count_validation = 500
-    folder_name = "synthetic_mixed_256_v1"
+    folder_name = "synthetic_mixed_256_v1_with_csv"
     
     for i in range(int(count_train*2 / 200)):
         os.makedirs(

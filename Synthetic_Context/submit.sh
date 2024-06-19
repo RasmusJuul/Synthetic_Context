@@ -1,9 +1,9 @@
 #!/bin/sh
 #BSUB -q gpua100
-#BSUB -J swinpca
+#BSUB -J kaggle_unet
 #BSUB -n 16
 #BSUB -R "span[hosts=1]"
-#BSUB -gpu "num=2:mode=exclusive_process"
+#BSUB -gpu "num=1:mode=exclusive_process"
 #BSUB -W 24:00
 #BSUB -R "rusage[mem=8GB]"
 ##BSUB -R "select[gpu80gb]" #options gpu40gb or gpu80gb
@@ -38,7 +38,7 @@ source ../../envs/thesis/bin/activate
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large50000v1 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --version v1  >| outputs/large50000v1.out 2>| error/large50000v1.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large5000v2 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --size 5000 --version v2  >| outputs/large5000v2.out 2>| error/large5000v2.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large20000v2 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --size 20000 --version v2  >| outputs/large20000v2.out 2>| error/large20000v2.err
-#TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large50000v2 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1998 --model large --version v2  >| outputs/large50000v2.out 2>| error/large50000v2.err
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large50000v2 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1998 --model large --version v2  >| outputs/large50000v2.out 2>| error/large50000v2.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large5000v3 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --size 5000 --version v3  >| outputs/large5000v3.out 2>| error/large5000v3.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large20000v3 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --size 20000 --version v3  >| outputs/large20000v3.out 2>| error/large20000v3.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large50000v3 --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --version v3  >| outputs/large50000v3.out 2>| error/large50000v3.err
@@ -56,7 +56,7 @@ source ../../envs/thesis/bin/activate
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name small_pca --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model small --pca_subset >| outputs/smallpca.out 2>| error/smallpca.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large_pca --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --pca_subset >| outputs/largepca.out 2>| error/largepca.err
-TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name swin_pca --batch_size 1 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model swin --pca_subset >| outputs/swinpca.out 2>| error/swinpca.err
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name swin_pca --batch_size 1 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model swin --pca_subset >| outputs/swinpca.out 2>| error/swinpca.err
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name small_umap --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model small --umap_subset >| outputs/smallumap.out 2>| error/smallumap.err
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name large_umap --batch_size 20 --max-epochs 800 --num-workers 16 --mix --seed 1997 --model large --umap_subset >| outputs/largeumap.out 2>| error/largeumap.err
@@ -72,3 +72,7 @@ TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name swin_pca --ba
 
 
 # TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name CycleGAN --batch_size 1 --max-epochs 999 --num-workers 4 --gan --seed 1997 >| outputs/CycleGAN.out 2>| error/CycleGAN.err
+
+TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name kaggle_object_loss_noise --batch_size 48 --max-epochs 999 --num-workers 16 --mix --seed 1997 --model large --version kaggle_noisy  >| outputs/kaggle_unet.out 2>| error/kaggle_unet.err
+
+# TORCH_USE_CUDA_DSA=1 CUDA_LAUNCH_BLOCKING=1 python3 main.py --name kaggle_noisy_boarder_swin --batch_size 1 --max-epochs 999 --num-workers 16 --mix --seed 1997 --model swin --version kaggle_noisy  >| outputs/kaggle_swin.out 2>| error/kaggle_swin.err

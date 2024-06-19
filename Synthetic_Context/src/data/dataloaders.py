@@ -7,6 +7,7 @@ import PIL
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from torch.nn.functional import pad
 from torch.utils.data import Dataset
 from torchvision import transforms
 from src import _PATH_DATA
@@ -179,7 +180,43 @@ class MetricDataset(Dataset):
 
     def get_name_of_image(self, idx: int) -> str:
         return self.image_paths[idx].split("/")[-1].split(".")[0]
+
+
+class kaggleDataset(Dataset):
+    def __init__(self,split="validation"):
+        """
+        Dataset of mixed_crop and their corresponding metric distance labels
+        """
+        super().__init__()
         
+        files = pd.read_csv(f"{_PATH_DATA}/BugNIST_DATA/{split}/{split}.csv", header=0)
+
+        self.image_paths = files.filename.to_list()
+        self.centerpoints = files.centerpoints.to_list()
+        
+        self.image_paths = [
+            os.path.join(f"{_PATH_DATA}/BugNIST_DATA/{split}", path) for path in self.image_paths
+        ]
+
+    def __len__(self) -> int:
+        return len(self.image_paths)
+
+    def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
+        image_path = self.image_paths[idx]
+        centerpoint = self.centerpoints[idx]
+        image = tifffile.imread(image_path)
+
+        image = np.expand_dims(image, 0)
+
+        X = torch.Tensor(image)
+
+        if X.shape[-1] == 92:
+            X = pad(X,(2,2,2,2,0,0))
+
+        return X, centerpoint, image_path
+
+    def get_name_of_image(self, idx: int) -> str:
+        return self.image_paths[idx].split("/")[-1].split(".")[0]
 
 class Label(IntEnum):
     """
@@ -214,7 +251,7 @@ class Label(IntEnum):
             Label.BlackCricket: "BC",
             Label.Grasshopper: "GH",
             Label.BrownCricket: "AC",
-            Label.BlowflyPupae: "GP",
+            Label.BlowflyPupae: "BP",
         }
 
     @property
@@ -223,6 +260,14 @@ class Label(IntEnum):
 
     @staticmethod
     def from_abbreviation(abbreviation: str):
+        return next(
+            label
+            for label, label_abbreviation in Label.abbreviation_dict().items()
+            if label_abbreviation == abbreviation.upper()
+        )
+
+    @staticmethod
+    def to_abbreviation(number: int):
         return next(
             label
             for label, label_abbreviation in Label.abbreviation_dict().items()
@@ -255,7 +300,7 @@ class BugNIST_mix(torch.utils.data.Dataset):
         """
         dataset_path = _PATH_DATA
 
-        self.image_paths, self.label_paths = self.dataset_images(dataset_path, type, gan, version, subset)
+        self.image_paths, self.label_paths, self.centroid_paths, self.object_paths = self.dataset_images(dataset_path, type, gan, version, subset)
         
         
         
@@ -264,12 +309,20 @@ class BugNIST_mix(torch.utils.data.Dataset):
                 size = len(self.image_paths)
             self.image_paths = self.image_paths[:size]
             self.label_paths = self.label_paths[:size]
+            self.centroid_paths = self.centroid_paths[:size]
+            self.object_paths = self.object_paths[:size]
             
         self.image_paths = [
             os.path.join(dataset_path, path) for path in self.image_paths
         ]
         self.label_paths = [
             os.path.join(dataset_path, path) for path in self.label_paths
+        ]
+        self.centroid_paths = [
+            os.path.join(dataset_path, path) for path in self.centroid_paths
+        ]
+        self.object_paths = [
+            os.path.join(dataset_path, path) for path in self.object_paths
         ]
         self.rng = np.random.default_rng(seed=seed)
         
@@ -285,9 +338,15 @@ class BugNIST_mix(torch.utils.data.Dataset):
                                                     transforms.RandFlip(prob=0.5,spatial_axis=0),
                                                     transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
                                                     ])
+        self.transforms_object = transforms.Compose([transforms.RandFlip(prob=0.5,spatial_axis=2),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=1),
+                                                    transforms.RandFlip(prob=0.5,spatial_axis=0),
+                                                    transforms.RandRotate90(prob=0.3,spatial_axes=(1,2)),
+                                                    ])
         
         self.transforms_img = self.transforms_img.set_random_state(seed=seed)
         self.transforms_label = self.transforms_label.set_random_state(seed=seed)
+        self.transforms_object = self.transforms_object.set_random_state(seed=seed)
         
         self.transform = transform
 
@@ -312,7 +371,7 @@ class BugNIST_mix(torch.utils.data.Dataset):
         if gan:
             return files.gan_img_path.to_list(), files.label_path.to_list()
         else:
-            return files.img_path.to_list(), files.label_path.to_list()
+            return files.img_path.to_list(), files.label_path.to_list(), files.centroid_path.to_list(), files.object_path.to_list()
 
     def __len__(self) -> int:
         return len(self.image_paths)  # len(self.data)
@@ -320,24 +379,39 @@ class BugNIST_mix(torch.utils.data.Dataset):
     def __getitem__(self, idx) -> tuple[Tensor, Tensor]:
         image_path = self.image_paths[idx]
         label_path = self.label_paths[idx]
+        centroid_path = self.centroid_paths[idx]
+        object_path = self.object_paths[idx]
+
 
         image = tifffile.imread(image_path)
         label = tifffile.imread(label_path)
+        object = tifffile.imread(object_path)
 
         X = torch.Tensor(image)
         X = X.unsqueeze(dim=0)
         y = torch.Tensor(label)
         y = y.unsqueeze(dim=0)
         
+        object = torch.Tensor(object)
+        object = object.unsqueeze(dim=0)
+
         if self.transform:
             X = self.transforms_img(X)
             y = self.transforms_label(y)
+            object = self.transforms_object(object)
 
         X = X.to(torch.float32)
         y = y.squeeze(dim=0)
         y = y.to(torch.long)
 
-        return X, y
+        object = object.to(torch.uint8)
+
+        if X.shape[-1] == 92:
+            X = pad(X,(2,2,2,2,0,0))
+            y = pad(y,(2,2,2,2,0,0))
+            object = pad(object,(2,2,2,2,0,0))
+        
+        return X, y, centroid_path, object
 
     @staticmethod
     def num_classes() -> int:

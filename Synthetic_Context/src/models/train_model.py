@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 import wandb
 from src import _PATH_DATA, _PATH_MODELS, _PROJECT_ROOT
 from src.data.dataloaders import BugNISTDataModule
-from src.models.unet import UNet_pl
+from src.models.unet import UNet_pl, UNet_kaggle
 from src.models.unet_no_skip import UNet_pl as UNetNoSkipConnection
 from src.models.swin_unetr import SwinUNETR_pl as SwinUNETR
 
@@ -55,19 +55,31 @@ def main(
         filename="UNet_small-{epoch}"
         precision = "16-mixed"
     elif model == "large":
-        model = UNet_pl(
-            spatial_dims=3,
-            in_channels=1,
-            out_channels=13,
-            channels=(16, 32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2, 2),
-            num_res_units = 3,
-            lr=lr,
-        )
+        if "kaggle" in version:
+            model = UNet_kaggle(
+                spatial_dims=3,
+                in_channels=1,
+                out_channels=13,
+                channels=(16, 32, 64, 128, 256, 512),
+                strides=(2, 2, 2, 2, 2),
+                num_res_units = 3,
+                lr=lr,
+            )
+        else:
+            model = UNet_pl(
+                spatial_dims=3,
+                in_channels=1,
+                out_channels=13,
+                channels=(16, 32, 64, 128, 256, 512),
+                strides=(2, 2, 2, 2, 2),
+                num_res_units = 3,
+                lr=lr,
+            )
         filename="UNet_large-{epoch}"
         precision = "16-mixed"
     elif model == "swin":
-        model = SwinUNETR(img_size=(256,128,128), in_channels=1, out_channels=13, feature_size=24)
+        #model = SwinUNETR(img_size=(256,128,128), in_channels=1, out_channels=13, feature_size=24)
+        model = SwinUNETR(img_size=(128,96,96), in_channels=1, out_channels=25, feature_size=48)
         filename="SwinUNETR-{epoch}"
         precision = "32-true"
         
@@ -89,7 +101,7 @@ def main(
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"{_PATH_MODELS}/{name}-{time}",
         filename=filename,
-        monitor="val/focal_loss",
+        monitor="val/total_loss",
         mode="min",
         save_top_k=1,
         auto_insert_metric_name=True,
@@ -117,7 +129,7 @@ def main(
         patience = 12
 
     early_stopping_callback = EarlyStopping(
-        monitor="val/focal_loss",
+        monitor="val/total_loss",
         patience=patience,
         verbose=True,
         mode="min",
@@ -152,4 +164,4 @@ def main(
             datamodule=bugnist,
         )
 
-    trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)
+    # trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=bugnist)

@@ -7,6 +7,8 @@ from torchvision.utils import _log_api_usage_once
 
 from collections.abc import Sequence
 
+from monai.losses.dice import DiceLoss
+
 
 def softmax_focal_loss(
     inputs: torch.Tensor,
@@ -88,3 +90,42 @@ def softmax_focal_loss(
         raise ValueError(
             f"Invalid Value for arg 'reduction': '{reduction} \n Supported reduction modes: 'none', 'mean', 'sum', 'instance-sum-batch-mean'"
         )
+
+
+def object_fill_loss(
+    inputs: torch.Tensor,
+    objects: torch.Tensor,
+) -> torch.Tensor:
+
+    batch_loss = torch.zeros(inputs.shape[0])
+
+    for i,object in enumerate(objects):
+        uniques = object.unique()
+        individual_losses = torch.zeros(uniques.shape)
+        for j,object_num in enumerate(uniques):
+            _, count = inputs[i:i+1][object == object_num].unique(return_counts=True)
+            individual_losses[j] = 1 - (count.max() / count.sum())
+        batch_loss[i] = individual_losses.mean()
+        
+    batch_loss = batch_loss.mean()
+
+    return batch_loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    

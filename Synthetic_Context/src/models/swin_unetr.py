@@ -49,29 +49,30 @@ class SwinUNETR_pl(SwinUNETR, LightningModule):
         )
         self.Loss = softmax_focal_loss
         self.lr = lr
-        self.alpha = torch.Tensor(
-            [
-                0.01,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-                0.0825,
-            ]
-        )
-        self.precision = tm.Precision(task="multiclass", num_classes=13, ignore_index=0)
-        self.recall = tm.Recall(task="multiclass", num_classes=13, ignore_index=0)
+        #self.alpha = torch.Tensor(
+        #    [
+        #        0.01,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #        0.0825,
+        #    ]
+        #)
+        self.alpha = torch.tensor([1/out_channels]*out_channels)
+        self.precision = tm.Precision(task="multiclass", num_classes=out_channels, ignore_index=0)
+        self.recall = tm.Recall(task="multiclass", num_classes=out_channels, ignore_index=0)
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
-        x, y = batch
+        x, y, _, _ = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha=self.alpha, reduction="mean")
         precision = self.precision(preds, y)
@@ -91,7 +92,7 @@ class SwinUNETR_pl(SwinUNETR, LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
+        x, y, _, _ = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha=self.alpha, reduction="mean")
         precision = self.precision(preds, y)
@@ -109,7 +110,7 @@ class SwinUNETR_pl(SwinUNETR, LightningModule):
         )
 
     def test_step(self, batch, batch_idx):
-        x, y = batch
+        x, y, _, _ = batch
         preds = self.forward(x)
         loss = self.Loss(preds, y, alpha=self.alpha, reduction="mean")
         precision = self.precision(preds, y)

@@ -1,5 +1,5 @@
 import os
-import glob
+from glob import glob
 import shutil
 import argparse
 import numpy as np
@@ -9,6 +9,8 @@ from skimage import io
 import scipy.ndimage as ndi
 from tifffile import imwrite
 from joblib import Parallel, delayed
+
+from src import _PATH_DATA
 
 
 def create_mask(im, intensity_threshold, iteration):
@@ -93,16 +95,31 @@ def cut(file):
 
 
 if __name__ == "__main__":
-    class_folders = os.listdir("../../data/bugnist_256")
+    class_folders = os.listdir("../../data/BugNIST_DATA/train")
     for folder in class_folders:
-        os.makedirs(f"../../data/bugnist_256_cut/{folder}", exist_ok=True)
-        os.makedirs(f"../../data/bugnist_128_cut/{folder}", exist_ok=True)
+        os.makedirs(f"../../data/BugNIST_DATA/train_cut/{folder}", exist_ok=True)
 
     np.random.seed(42)
+    
+    image_paths = glob("../../data/BugNIST_DATA/train/**/*.tif")
+    Parallel(n_jobs=-1)(
+        delayed(cut)(image_path)
+        for image_path in tqdm(image_paths, unit="image", desc="cutting images")
+    )
 
-    for size in ["256", "128"]:
-        image_paths = glob.glob(f"../../data/bugnist_{size}/**/*.tif")
-        Parallel(n_jobs=-1)(
-            delayed(cut)(image_path)
-            for image_path in tqdm(image_paths, unit="image", desc="cutting images")
-        )
+    # for size in ["256", "128"]:
+    #     image_paths = glob.glob(f"../../data/bugnist_{size}/**/*.tif")
+    #     Parallel(n_jobs=-1)(
+    #         delayed(cut)(image_path)
+    #         for image_path in tqdm(image_paths, unit="image", desc="cutting images")
+    #     )
+
+    files = glob(f"{_PATH_DATA}/BugNIST_DATA/train_cut/**/*.tif")
+    temp = {}
+    for file in files:
+        temp["/".join(file.split("/")[-4:])] = tifffile.imread(file).shape
+    df = pd.DataFrame(data={"file_name":files})
+    df["file_name"] = df.file_name.apply(lambda x: "/".join(x.split("/")[-4:]))
+    df["label"] = df.file_name.apply(lambda x: x.split("/")[-2])
+    df["size"] = df.file_name.apply(lambda x: temp["/".join(x.split("/")[-2:])])
+    df.to_csv("cut_sizes.csv",index=False)
